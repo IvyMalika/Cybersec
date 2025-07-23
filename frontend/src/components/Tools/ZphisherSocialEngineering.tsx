@@ -81,17 +81,24 @@ const ZphisherSocialEngineering: React.FC<{ userRole?: string }> = ({ userRole }
 
   // Poll status if running and sessionId is set
   useEffect(() => {
-    if (sessionId && status?.running) {
+    // Clear any previous interval
+    clearInterval(intervalRef.current);
+    // Only poll if session is running and not in a terminal state
+    if (
+      sessionId &&
+      status &&
+      status.status &&
+      !['error', 'completed', 'stopped'].includes(status.status)
+    ) {
       intervalRef.current = setInterval(() => {
-        axios.get(`/api/tools/social/zphisher/status?session_id=${sessionId}`)
-          .then(res => setStatus(res.data))
+        axios
+          .get(`/api/tools/social/zphisher/status?session_id=${sessionId}`)
+          .then((res) => setStatus(res.data))
           .catch(() => setError('Failed to fetch Zphisher status.'));
-      }, 2000);
-    } else {
-      clearInterval(intervalRef.current);
+      }, 5000); // 5 seconds
     }
     return () => clearInterval(intervalRef.current);
-  }, [status?.running, sessionId]);
+  }, [sessionId, status?.status]);
 
   // Fetch session history
   const fetchHistory = async () => {
@@ -220,6 +227,11 @@ const ZphisherSocialEngineering: React.FC<{ userRole?: string }> = ({ userRole }
             Launch phishing campaigns using Zphisher. Select a template, start the attack, and monitor results in real time. <b>For authorized use only.</b>
           </Alert>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {status?.status === 'error' && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Zphisher session failed. Check logs for details.
+            </Alert>
+          )}
           <FormControl fullWidth sx={{ mb: 2, position: 'relative' }}>
             <InputLabel id="zphisher-template-label">Template</InputLabel>
             <Select

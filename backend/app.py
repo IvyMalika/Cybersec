@@ -52,6 +52,7 @@ from pyattck import Attck
 import threading
 import uuid
 import time
+import select
 
 # Load environment variables
 load_dotenv()
@@ -2691,14 +2692,15 @@ def is_admin_or_analyst():
 
 def run_zphisher(session_id):
     """
-    This function runs in a separate thread to manage a Zphisher session.
-    It handles starting the process, interacting with it, and capturing output.
+    Improved: Runs Zphisher session with robust diagnostics, non-blocking I/O, and error handling.
     """
+    import select
     with zphisher_lock:
         session = zphisher_sessions[session_id]
         template = session['template']
         port = session['port']
         tunnel = session['tunnel']
+        tunnel_index = session.get('tunnel_index', 1)
 
     try:
         zphisher_rel_path = os.path.join("zphisher", "zphisher.sh")
@@ -2708,13 +2710,12 @@ def run_zphisher(session_id):
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"zphisher.sh not found at {script_path}")
 
-        # Use WSL if on Windows
         import platform
         if os.name == 'nt' or platform.system().lower().startswith('win'):
             drive, rest = os.path.splitdrive(script_path)
             wsl_path = f"/mnt/{drive[0].lower()}{rest.replace('\\', '/').replace('\\', '/')}"
             cmd = ["wsl", "bash", wsl_path]
-            proc_cwd = None  # Let WSL handle the working directory
+            proc_cwd = None
         else:
             cmd = ["bash", script_path]
             proc_cwd = os.path.dirname(script_path)
@@ -2733,85 +2734,141 @@ def run_zphisher(session_id):
             session['process'] = proc
             session['status'] = 'running'
 
-        # Log all output before menu
-        all_output = []
-        # Wait for the template selection prompt
-        template_prompt_found = False
-        max_wait = 60  # seconds
-        start_time = time.time()
-        while time.time() - start_time < max_wait:
-            line = proc.stdout.readline()
-            if not line:
-                break
-            line = line.strip()
-            all_output.append(line)
-            with zphisher_lock:
-                session['output'].append(line)
-            if 'Select An Attack For Your Victim' in line or 'Select an option' in line or 'Select An Option' in line:
-                template_prompt_found = True
-                break
-        if template_prompt_found:
-            proc.stdin.write(f"{template_index}\n")
-            proc.stdin.flush()
+        def read_lines_until(prompt_list, timeout):
+            """Read lines non-blocking until one of the prompts is found or timeout."""
+            output_lines = []
+            found_prompt = False
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                reads, _, _ = select.select([proc.stdout], [], [], 0.5)
+                if proc.poll() is not None:
+                    # Process exited early
+                    break
+                if reads:
+                    line = proc.stdout.readline()
+                    if not line:
+                        continue
+                    line = line.strip()
+                    output_lines.append(line)
+                    with zphisher_lock:
+                        session['output'].append(line)
+                    for prompt in prompt_list:
+                        if prompt in line:
+                            found_prompt = True
+                            return found_prompt, output_lines
+                else:
+                    time.sleep(0.1)
+            return found_prompt, output_lines
+
+        # Wait for template selection prompt (120s)
+        template_prompts = [
+            'Select An Attack For Your Victim',
+            'Select an option',
+            'Select An Option',
+            'Enter your choice'
+        ]
+        found, _ = read_lines_until(template_prompts, 120)
+        if found:
+            # Find template index
+            live_templates = fetch_zphisher_templates() or ZPHISHER_TEMPLATES
+            try:
+                template_index = live_templates.index(template) + 1
+            except Exception:
+                template_index = 1
+            try:
+                proc.stdin.write(f"{template_index}\n")
+                proc.stdin.flush()
+            except Exception as e:
+                with zphisher_lock:
+                    session['output'].append(f"Failed to send template index: {e}")
+                    session['status'] = 'error'
+                app.logger.error(f"[Zphisher] Failed to send template index: {e}")
+                proc.terminate()
+                return
         else:
             with zphisher_lock:
                 session['output'].append("Template selection prompt not found. Zphisher may have exited early or is still installing dependencies.")
                 session['status'] = 'error'
+            app.logger.error(f"[Zphisher] Template selection prompt not found. Process exited: {proc.poll()}.")
             proc.terminate()
             return
 
-        # Wait for the tunnel selection prompt before sending the tunnel index
-        tunnel_index = session.get('tunnel_index', 1)
-        prompt_found = False
-        max_wait = 30  # seconds
-        start_time = time.time()
-        while time.time() - start_time < max_wait:
+        # Wait for tunnel selection prompt (60s)
+        tunnel_prompts = [
+            'Select a port forwarding service',
+            'Select port forwarding service',
+            'Choose a port forwarding service',
+            'Enter your choice'
+        ]
+        found, _ = read_lines_until(tunnel_prompts, 60)
+        if found:
+            try:
+                proc.stdin.write(f"{tunnel_index}\n")
+                proc.stdin.flush()
+            except Exception as e:
+                with zphisher_lock:
+                    session['output'].append(f"Failed to send tunnel index: {e}")
+                    session['status'] = 'error'
+                app.logger.error(f"[Zphisher] Failed to send tunnel index: {e}")
+                proc.terminate()
+                return
+        else:
+            with zphisher_lock:
+                session['output'].append("Tunnel selection prompt not found. Zphisher may have exited early or is still installing dependencies.")
+                session['status'] = 'error'
+            app.logger.error(f"[Zphisher] Tunnel selection prompt not found. Process exited: {proc.poll()}.")
+            proc.terminate()
+            return
+
+        # Main output loop (non-blocking)
+        while True:
+            if proc.poll() is not None:
+                break
+            reads, _, _ = select.select([proc.stdout], [], [], 0.5)
+            if reads:
+                line = proc.stdout.readline()
+                if not line:
+                    continue
+                line = line.strip()
+                with zphisher_lock:
+                    session['output'].append(line)
+                    # Capture the phishing link
+                    url_match = re.search(r'(https?://[a-zA-Z0-9.\-]+(\.serveo\.net|\.ngrok\.io|localhost\.run|:[0-9]+))', line)
+                    if url_match:
+                        session['link'] = url_match.group(0)
+                    # Capture credentials
+                    if 'credentials found' in line.lower() or 'username:' in line.lower() or 'password:' in line.lower():
+                        session['credentials'].append(line)
+            else:
+                time.sleep(0.1)
+
+        # Capture any remaining output after process exit
+        while True:
             line = proc.stdout.readline()
             if not line:
                 break
             line = line.strip()
             with zphisher_lock:
                 session['output'].append(line)
-            if 'Select a port forwarding service' in line or 'Select port forwarding service' in line:
-                prompt_found = True
-                break
-        if prompt_found:
-            try:
-                proc.stdin.write(f"{tunnel_index}\n")
-                proc.stdin.flush()
-            except OSError as e:
-                with zphisher_lock:
-                    session['output'].append(f"Failed to send tunnel index: {e}")
+
+        exit_code = proc.poll()
+        if exit_code not in (0, None):
+            with zphisher_lock:
+                session['output'].append(f"Zphisher exited with code {exit_code}.")
+                session['status'] = 'error'
+            app.logger.error(f"[Zphisher] Process exited with code {exit_code} for session {session_id}.")
         else:
             with zphisher_lock:
-                session['output'].append("Tunnel selection prompt not found. Zphisher may have exited early or is still installing dependencies.")
-                session['status'] = 'error'
-            proc.terminate()
-            return
-
-        for line in proc.stdout:
-            with zphisher_lock:
-                line = line.strip()
-                session['output'].append(line)
-                # Capture the phishing link
-                url_match = re.search(r'(https?://[a-zA-Z0-9.\-]+(\.serveo\.net|\.ngrok\.io|localhost\.run|:[0-9]+))', line)
-                if url_match:
-                    session['link'] = url_match.group(0)
-                # Capture credentials
-                if 'credentials found' in line.lower() or 'username:' in line.lower() or 'password:' in line.lower():
-                    session['credentials'].append(line)
-        
-        proc.wait()
+                if session.get('status') == 'running':
+                    session['status'] = 'completed'
 
     except Exception as e:
         with zphisher_lock:
             session['status'] = 'error'
             session['output'].append(f"Zphisher thread error: {str(e)}")
-            app.logger.error(f"Zphisher session {session_id} error: {e}\n{traceback.format_exc()}")
+        app.logger.error(f"Zphisher session {session_id} error: {e}\n{traceback.format_exc()}")
     finally:
         with zphisher_lock:
-            if session.get('status') == 'running':
-                session['status'] = 'completed'
             session['process'] = None  # Clear the process object
 
 @app.route('/api/tools/social/zphisher/start', methods=['POST'])
@@ -2832,7 +2889,7 @@ def zphisher_start():
     if template not in live_templates:
         return jsonify({'error': f'Invalid template. Valid options are: {", ".join(live_templates)}'}), 400
 
-                with zphisher_lock:
+    with zphisher_lock:
         session_id = str(uuid.uuid4())
         session = {
             'session_id': session_id,
@@ -2898,9 +2955,9 @@ def zphisher_history_detail(session_id):
     if not is_admin_or_analyst():
         return jsonify({'error': 'Unauthorized'}), 403
     with zphisher_lock:
-    session = zphisher_sessions.get(session_id)
-    if not session:
-        return jsonify({'error': 'Session not found'}), 404
+        session = zphisher_sessions.get(session_id)
+        if not session:
+            return jsonify({'error': 'Session not found'}), 404
         session_data = {k: v for k, v in session.items() if k not in ['process', 'thread']}
         return jsonify(session_data)
 
@@ -2915,7 +2972,7 @@ def zphisher_stop():
     if not session_id:
         return jsonify({'error': 'session_id is required'}), 400
 
-        with zphisher_lock:
+    with zphisher_lock:
         session = zphisher_sessions.get(session_id)
         if not session:
             return jsonify({'error': 'Session not found'}), 404
@@ -2927,12 +2984,11 @@ def zphisher_stop():
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-            
             session['status'] = 'stopped'
             session['output'].append("Session stopped by user.")
             session['process'] = None
             return jsonify({'message': 'Zphisher session stopped successfully'}), 200
-    else:
+        else:
             if session.get('status') == 'running':
                 session['status'] = 'completed'
             return jsonify({'error': 'Zphisher session is not currently running.'}), 400
