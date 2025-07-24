@@ -28,6 +28,7 @@ import QuizInterface from './components/Education/QuizInterface';
 import DocumentUpload from './components/Education/DocumentUpload';
 import CertificatePreview from './components/Education/CertificatePreview';
 import AdminEducationPanel from './components/Education/Admin/AdminEducationPanel';
+import LandingPage from './components/Landing/LandingPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,7 +78,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
-  const { isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -87,7 +88,7 @@ function App() {
             <div>
               {/* Navigation Bar */}
               <nav style={{ padding: 16, background: '#f8fafc', borderBottom: '1px solid #eee', marginBottom: 24 }}>
-                <Link to="/" style={{ marginRight: 16 }}>Dashboard</Link>
+                <Link to="/" style={{ marginRight: 16 }}>Home</Link>
                 <Link to="/education" style={{ marginRight: 16 }}>Education</Link>
                 <Link to="/education/documents" style={{ marginRight: 16 }}>Documents</Link>
                 {isAdmin && (
@@ -314,7 +315,12 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/" element={<Navigate to="/dashboard" />} />
+                <Route
+                  path="/"
+                  element={
+                    isAuthenticated ? <Navigate to="/dashboard" /> : <LandingPage />
+                  }
+                />
               </Routes>
             </div>
           </Router>
