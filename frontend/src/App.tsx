@@ -22,6 +22,12 @@ import AdminPanel from './components/Admin/AdminPanel';
 import WiFiTool from './components/Tools/WiFiTool';
 import SQLInjectionScanner from './components/Tools/SQLInjectionScanner';
 import ZphisherSocialEngineering from './components/Tools/ZphisherSocialEngineering';
+import EducationDashboard from './components/Education/EducationDashboard';
+import CourseDetail from './components/Education/CourseDetail';
+import QuizInterface from './components/Education/QuizInterface';
+import DocumentUpload from './components/Education/DocumentUpload';
+import CertificatePreview from './components/Education/CertificatePreview';
+import AdminEducationPanel from './components/Education/Admin/AdminEducationPanel';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +77,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
+  const { isAdmin } = useAuth();
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -81,6 +88,11 @@ function App() {
               {/* Navigation Bar */}
               <nav style={{ padding: 16, background: '#f8fafc', borderBottom: '1px solid #eee', marginBottom: 24 }}>
                 <Link to="/" style={{ marginRight: 16 }}>Dashboard</Link>
+                <Link to="/education" style={{ marginRight: 16 }}>Education</Link>
+                <Link to="/education/documents" style={{ marginRight: 16 }}>Documents</Link>
+                {isAdmin && (
+                  <Link to="/admin/education" style={{ marginRight: 16, color: '#1976d2', fontWeight: 600 }}>Admin Education</Link>
+                )}
                 <Link to="/tools/osint">OSINT Gatherer</Link>
                 <Link to="/tools/sql-injection" style={{ marginLeft: 16, fontWeight: 600, color: '#1976d2' }}>SQL Injection Scanner</Link>
                 {/* Add other tool links here */}
@@ -213,6 +225,56 @@ function App() {
                   }
                 />
                 <Route
+                  path="/education"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <EducationDashboard />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/education/courses/:course_id"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <CourseDetail />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/education/quizzes/:quiz_id"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <QuizInterface />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/education/documents"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <DocumentUpload />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/education/certificate/:course_id"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <CertificatePreview />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/jobs"
                   element={
                     <ProtectedRoute>
@@ -238,6 +300,16 @@ function App() {
                     <ProtectedRoute>
                       <AppLayout>
                         <AdminPanel />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/education"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <AdminEducationPanel />
                       </AppLayout>
                     </ProtectedRoute>
                   }

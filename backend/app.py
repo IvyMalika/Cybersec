@@ -2760,14 +2760,14 @@ def run_zphisher(session_id):
                     time.sleep(0.1)
             return found_prompt, output_lines
 
-        # Wait for template selection prompt (120s)
+        # Wait for template selection prompt (1800s)
         template_prompts = [
             'Select An Attack For Your Victim',
             'Select an option',
             'Select An Option',
             'Enter your choice'
         ]
-        found, _ = read_lines_until(template_prompts, 120)
+        found, _ = read_lines_until(template_prompts, 1800)
         if found:
             # Find template index
             live_templates = fetch_zphisher_templates() or ZPHISHER_TEMPLATES
@@ -2793,14 +2793,14 @@ def run_zphisher(session_id):
             proc.terminate()
             return
 
-        # Wait for tunnel selection prompt (60s)
+        # Wait for tunnel selection prompt (1800s)
         tunnel_prompts = [
             'Select a port forwarding service',
             'Select port forwarding service',
             'Choose a port forwarding service',
             'Enter your choice'
         ]
-        found, _ = read_lines_until(tunnel_prompts, 60)
+        found, _ = read_lines_until(tunnel_prompts, 1800)
         if found:
             try:
                 proc.stdin.write(f"{tunnel_index}\n")
@@ -3117,6 +3117,366 @@ def fetch_zphisher_templates():
         logging.error(f"[Zphisher] zphisher.sh exited with code {proc.returncode}. Output:\n{output}")
         return None
     return templates
+
+# --- Education Sector Endpoints ---
+@app.route('/api/education/courses', methods=['GET'])
+def list_courses():
+    try:
+        courses = execute_query(
+            "SELECT course_id, title, description, video_url, created_at FROM courses ORDER BY created_at DESC"
+        )
+        return jsonify({"courses": courses}), 200
+    except Exception as e:
+        app.logger.error(f"List courses error: {e}")
+        return jsonify({"error": "Failed to fetch courses"}), 500
+
+@app.route('/api/education/courses/<int:course_id>', methods=['GET'])
+def get_course(course_id):
+    try:
+        course = execute_query(
+            "SELECT course_id, title, description, video_url, created_at FROM courses WHERE course_id = %s",
+            (course_id,),
+            fetch_one=True
+        )
+        if not course:
+            return jsonify({"error": "Course not found"}), 404
+        # Get quizzes for this course
+        quizzes = execute_query(
+            "SELECT quiz_id, title, description FROM quizzes WHERE course_id = %s",
+            (course_id,)
+        )
+        course['quizzes'] = quizzes
+        return jsonify({"course": course}), 200
+    except Exception as e:
+        app.logger.error(f"Get course error: {e}")
+        return jsonify({"error": "Failed to fetch course details"}), 500
+
+@app.route('/api/education/quizzes/<int:quiz_id>', methods=['GET'])
+def get_quiz(quiz_id):
+    try:
+        quiz = execute_query(
+            "SELECT quiz_id, course_id, title, description FROM quizzes WHERE quiz_id = %s",
+            (quiz_id,),
+            fetch_one=True
+        )
+        if not quiz:
+            return jsonify({"error": "Quiz not found"}), 404
+        # Get questions and options
+        questions = execute_query(
+            "SELECT question_id, question_text, question_type FROM questions WHERE quiz_id = %s",
+            (quiz_id,)
+        )
+        for q in questions:
+            options = execute_query(
+                "SELECT option_id, option_text FROM options WHERE question_id = %s",
+                (q['question_id'],)
+            ) if q['question_type'] == 'multiple_choice' else []
+            q['options'] = options
+        quiz['questions'] = questions
+        return jsonify({"quiz": quiz}), 200
+    except Exception as e:
+        app.logger.error(f"Get quiz error: {e}")
+        return jsonify({"error": "Failed to fetch quiz"}), 500
+
+@app.route('/api/education/quizzes/<int:quiz_id>/submit', methods=['POST'])
+@jwt_required()
+def submit_quiz(quiz_id):
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        answers = data.get('answers', [])  # [{question_id, selected_option_id, answer_text}]
+        if not answers:
+            return jsonify({"error": "No answers submitted"}), 400
+        # Insert submission
+        submission_id = execute_query(
+            "INSERT INTO user_quiz_submissions (user_id, quiz_id, score) VALUES (%s, %s, %s)",
+            (user_id, quiz_id, 0)
+        )
+        score = 0
+        for ans in answers:
+            question_id = ans.get('question_id')
+            selected_option_id = ans.get('selected_option_id')
+            answer_text = ans.get('answer_text')
+            # Check if correct (for multiple_choice)
+            is_correct = False
+            if selected_option_id:
+                opt = execute_query(
+                    "SELECT is_correct FROM options WHERE option_id = %s",
+                    (selected_option_id,),
+                    fetch_one=True
+                )
+                is_correct = opt and opt['is_correct']
+            # For now, only auto-score multiple_choice
+            if is_correct:
+                score += 1
+            execute_query(
+                "INSERT INTO user_answers (submission_id, question_id, selected_option_id, answer_text) VALUES (%s, %s, %s, %s)",
+                (submission_id, question_id, selected_option_id, answer_text)
+            )
+        # Update score
+        execute_query(
+            "UPDATE user_quiz_submissions SET score = %s WHERE submission_id = %s",
+            (score, submission_id)
+        )
+        return jsonify({"message": "Quiz submitted", "score": score}), 200
+    except Exception as e:
+        app.logger.error(f"Submit quiz error: {e}")
+        return jsonify({"error": "Failed to submit quiz"}), 500
+
+@app.route('/api/education/courses/<int:course_id>/progress', methods=['GET'])
+@jwt_required()
+def get_course_progress(course_id):
+    try:
+        user_id = get_jwt_identity()
+        progress = execute_query(
+            "SELECT * FROM user_course_progress WHERE user_id = %s AND course_id = %s",
+            (user_id, course_id),
+            fetch_one=True
+        )
+        if not progress:
+            return jsonify({"progress": {"completed": False, "progress": 0}}), 200
+        return jsonify({"progress": progress}), 200
+    except Exception as e:
+        app.logger.error(f"Get course progress error: {e}")
+        return jsonify({"error": "Failed to fetch progress"}), 500
+
+@app.route('/api/education/courses/<int:course_id>/progress', methods=['POST'])
+@jwt_required()
+def update_course_progress(course_id):
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        progress = data.get('progress', 0)
+        completed = data.get('completed', False)
+        certificate_url = data.get('certificate_url')
+        completed_at = datetime.now() if completed else None
+        # Upsert logic
+        existing = execute_query(
+            "SELECT * FROM user_course_progress WHERE user_id = %s AND course_id = %s",
+            (user_id, course_id),
+            fetch_one=True
+        )
+        if existing:
+            execute_query(
+                "UPDATE user_course_progress SET progress = %s, completed = %s, certificate_url = %s, completed_at = %s WHERE user_id = %s AND course_id = %s",
+                (progress, completed, certificate_url, completed_at, user_id, course_id)
+            )
+        else:
+            execute_query(
+                "INSERT INTO user_course_progress (user_id, course_id, progress, completed, certificate_url, completed_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                (user_id, course_id, progress, completed, certificate_url, completed_at)
+            )
+        return jsonify({"message": "Progress updated"}), 200
+    except Exception as e:
+        app.logger.error(f"Update course progress error: {e}")
+        return jsonify({"error": "Failed to update progress"}), 500
+
+# --- User Document Upload & Status ---
+@app.route('/api/education/documents/upload', methods=['POST'])
+@jwt_required()
+def upload_document():
+    try:
+        user_id = get_jwt_identity()
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+        file = request.files['file']
+        document_type = request.form.get('document_type')
+        if not document_type:
+            return jsonify({"error": "Document type required"}), 400
+        filename = secure_filename(f"doc_{user_id}_{document_type}_{file.filename}")
+        upload_folder = app.config.get('UPLOAD_FOLDER', '/tmp/uploads')
+        file_path = os.path.join(upload_folder, filename)
+        file.save(file_path)
+        file_url = f"/uploads/{filename}"
+        execute_query(
+            "INSERT INTO user_documents (user_id, document_type, file_url, status) VALUES (%s, %s, %s, 'pending')",
+            (user_id, document_type, file_url)
+        )
+        return jsonify({"message": "Document uploaded", "file_url": file_url}), 200
+    except Exception as e:
+        app.logger.error(f"Upload document error: {e}")
+        return jsonify({"error": "Failed to upload document"}), 500
+
+@app.route('/api/education/documents/status', methods=['GET'])
+@jwt_required()
+def document_status():
+    try:
+        user_id = get_jwt_identity()
+        docs = execute_query(
+            "SELECT document_id, document_type, file_url, status, reviewed_by, reviewed_at, uploaded_at FROM user_documents WHERE user_id = %s ORDER BY uploaded_at DESC",
+            (user_id,)
+        )
+        return jsonify({"documents": docs}), 200
+    except Exception as e:
+        app.logger.error(f"Document status error: {e}")
+        return jsonify({"error": "Failed to fetch document status"}), 500
+
+# --- Certificate Download ---
+@app.route('/api/education/certificate/<int:course_id>', methods=['GET'])
+@jwt_required()
+def download_certificate(course_id):
+    try:
+        user_id = get_jwt_identity()
+        progress = execute_query(
+            "SELECT certificate_url FROM user_course_progress WHERE user_id = %s AND course_id = %s AND completed = TRUE",
+            (user_id, course_id),
+            fetch_one=True
+        )
+        if not progress or not progress.get('certificate_url'):
+            return jsonify({"error": "Certificate not available"}), 404
+        cert_path = progress['certificate_url']
+        # Assume cert_path is a file path; adjust if using URLs
+        return send_file(cert_path, as_attachment=True)
+    except Exception as e:
+        app.logger.error(f"Download certificate error: {e}")
+        return jsonify({"error": "Failed to download certificate"}), 500
+
+# --- Admin Endpoints ---
+def admin_required():
+    claims = get_jwt()
+    if claims.get('role') != 'admin':
+        return False
+    return True
+
+@app.route('/api/admin/education/courses', methods=['POST'])
+@jwt_required()
+def admin_create_course():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    title = data.get('title')
+    description = data.get('description')
+    video_url = data.get('video_url')
+    if not title:
+        return jsonify({"error": "Title required"}), 400
+    course_id = execute_query(
+        "INSERT INTO courses (title, description, video_url) VALUES (%s, %s, %s)",
+        (title, description, video_url)
+    )
+    return jsonify({"message": "Course created", "course_id": course_id}), 201
+
+@app.route('/api/admin/education/courses/<int:course_id>', methods=['PUT'])
+@jwt_required()
+def admin_update_course(course_id):
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    title = data.get('title')
+    description = data.get('description')
+    video_url = data.get('video_url')
+    execute_query(
+        "UPDATE courses SET title = %s, description = %s, video_url = %s WHERE course_id = %s",
+        (title, description, video_url, course_id)
+    )
+    return jsonify({"message": "Course updated"}), 200
+
+@app.route('/api/admin/education/courses/<int:course_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_course(course_id):
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    execute_query(
+        "DELETE FROM courses WHERE course_id = %s",
+        (course_id,)
+    )
+    return jsonify({"message": "Course deleted"}), 200
+
+@app.route('/api/admin/education/quizzes', methods=['POST'])
+@jwt_required()
+def admin_create_quiz():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    course_id = data.get('course_id')
+    title = data.get('title')
+    description = data.get('description')
+    if not course_id or not title:
+        return jsonify({"error": "Course ID and title required"}), 400
+    quiz_id = execute_query(
+        "INSERT INTO quizzes (course_id, title, description) VALUES (%s, %s, %s)",
+        (course_id, title, description)
+    )
+    return jsonify({"message": "Quiz created", "quiz_id": quiz_id}), 201
+
+@app.route('/api/admin/education/questions', methods=['POST'])
+@jwt_required()
+def admin_create_question():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    quiz_id = data.get('quiz_id')
+    question_text = data.get('question_text')
+    question_type = data.get('question_type')
+    if not quiz_id or not question_text or not question_type:
+        return jsonify({"error": "Quiz ID, question text, and type required"}), 400
+    question_id = execute_query(
+        "INSERT INTO questions (quiz_id, question_text, question_type) VALUES (%s, %s, %s)",
+        (quiz_id, question_text, question_type)
+    )
+    return jsonify({"message": "Question created", "question_id": question_id}), 201
+
+@app.route('/api/admin/education/options', methods=['POST'])
+@jwt_required()
+def admin_create_option():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    question_id = data.get('question_id')
+    option_text = data.get('option_text')
+    is_correct = data.get('is_correct', False)
+    if not question_id or not option_text:
+        return jsonify({"error": "Question ID and option text required"}), 400
+    option_id = execute_query(
+        "INSERT INTO options (question_id, option_text, is_correct) VALUES (%s, %s, %s)",
+        (question_id, option_text, is_correct)
+    )
+    return jsonify({"message": "Option created", "option_id": option_id}), 201
+
+@app.route('/api/admin/education/documents', methods=['GET'])
+@jwt_required()
+def admin_list_documents():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    docs = execute_query(
+        "SELECT * FROM user_documents ORDER BY uploaded_at DESC"
+    )
+    return jsonify({"documents": docs}), 200
+
+@app.route('/api/admin/education/documents/<int:document_id>/review', methods=['POST'])
+@jwt_required()
+def admin_review_document(document_id):
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    status = data.get('status')
+    if status not in ['approved', 'rejected']:
+        return jsonify({"error": "Invalid status"}), 400
+    reviewed_by = get_jwt_identity()
+    reviewed_at = datetime.now()
+    execute_query(
+        "UPDATE user_documents SET status = %s, reviewed_by = %s, reviewed_at = %s WHERE document_id = %s",
+        (status, reviewed_by, reviewed_at, document_id)
+    )
+    return jsonify({"message": f"Document {status}"}), 200
+
+@app.route('/api/admin/education/certificate/generate', methods=['POST'])
+@jwt_required()
+def admin_generate_certificate():
+    if not admin_required():
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    course_id = data.get('course_id')
+    certificate_url = data.get('certificate_url')
+    if not user_id or not course_id or not certificate_url:
+        return jsonify({"error": "user_id, course_id, and certificate_url required"}), 400
+    completed_at = datetime.now()
+    # Update user_course_progress with certificate
+    execute_query(
+        "UPDATE user_course_progress SET completed = TRUE, certificate_url = %s, completed_at = %s WHERE user_id = %s AND course_id = %s",
+        (certificate_url, completed_at, user_id, course_id)
+    )
+    return jsonify({"message": "Certificate generated and assigned"}), 200
 
 if __name__ == '__main__':
     # Setup logging
