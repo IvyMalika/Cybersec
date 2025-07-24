@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -58,6 +58,25 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  return isAuthenticated && isAdmin ? <>{children}</> : <Navigate to="/dashboard" />;
+};
+
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -78,251 +97,71 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
-  const { isAuthenticated, isAdmin } = useAuth();
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <Router>
-            <div>
-              {/* Navigation Bar */}
-              <nav style={{ padding: 16, background: '#f8fafc', borderBottom: '1px solid #eee', marginBottom: 24 }}>
-                <Link to="/" style={{ marginRight: 16 }}>Home</Link>
-                <Link to="/education" style={{ marginRight: 16 }}>Education</Link>
-                <Link to="/education/documents" style={{ marginRight: 16 }}>Documents</Link>
-                {isAdmin && (
-                  <Link to="/admin/education" style={{ marginRight: 16, color: '#1976d2', fontWeight: 600 }}>Admin Education</Link>
-                )}
-                <Link to="/tools/osint">OSINT Gatherer</Link>
-                <Link to="/tools/sql-injection" style={{ marginLeft: 16, fontWeight: 600, color: '#1976d2' }}>SQL Injection Scanner</Link>
-                {/* Add other tool links here */}
-              </nav>
-              <Routes>
-                <Route
-                  path="/login"
-                  element={
-                    <PublicRoute>
-                      <LoginForm />
-                    </PublicRoute>
-                  }
-                />
-                <Route
-                  path="/register"
-                  element={
-                    <PublicRoute>
-                      <RegisterForm />
-                    </PublicRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <Dashboard />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/nmap"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <NmapScanner />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/vulnerability"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <VulnerabilityScanner />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/malware"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <MalwareAnalyzer />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/network-monitor"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <NetworkMonitor />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/osint"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <OSINTGatherer />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/password-crack"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <PasswordCracker />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/threat-intel"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <ThreatIntelligence />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/wifi"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <WiFiTool />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/sql-injection"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <SQLInjectionScanner />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tools/social-engineering"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <ZphisherSocialEngineering />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/education"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <EducationDashboard />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/education/courses/:course_id"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <CourseDetail />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/education/quizzes/:quiz_id"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <QuizInterface />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/education/documents"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <DocumentUpload />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/education/certificate/:course_id"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <CertificatePreview />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/jobs"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <JobsManager />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <ReportsManager />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <AdminPanel />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/education"
-                  element={
-                    <ProtectedRoute>
-                      <AppLayout>
-                        <AdminEducationPanel />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/"
-                  element={
-                    isAuthenticated ? <Navigate to="/dashboard" /> : <LandingPage />
-                  }
-                />
-              </Routes>
-            </div>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={
+                <PublicRoute>
+                  <LoginForm />
+                </PublicRoute>
+              } />
+              <Route path="/register" element={
+                <PublicRoute>
+                  <RegisterForm />
+                </PublicRoute>
+              } />
+
+              {/* Protected routes with AppLayout */}
+              <Route element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Outlet />
+                  </AppLayout>
+                </ProtectedRoute>
+              }>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/tools/nmap" element={<NmapScanner />} />
+                <Route path="/tools/vulnerability-scanner" element={<VulnerabilityScanner />} />
+                <Route path="/tools/malware-analyzer" element={<MalwareAnalyzer />} />
+                <Route path="/tools/network-monitor" element={<NetworkMonitor />} />
+                <Route path="/tools/osint-gatherer" element={<OSINTGatherer />} />
+                <Route path="/tools/password-cracker" element={<PasswordCracker />} />
+                <Route path="/tools/threat-intelligence" element={<ThreatIntelligence />} />
+                <Route path="/tools/wifi" element={<WiFiTool />} />
+                <Route path="/tools/sql-injection" element={<SQLInjectionScanner />} />
+                <Route path="/tools/zphisher" element={<ZphisherSocialEngineering />} />
+                <Route path="/jobs" element={<JobsManager />} />
+                <Route path="/reports" element={<ReportsManager />} />
+                
+                {/* Education routes */}
+                <Route path="/education" element={<EducationDashboard />} />
+                <Route path="/education/course/:id" element={<CourseDetail />} />
+                <Route path="/education/quiz/:id" element={<QuizInterface />} />
+                <Route path="/education/upload" element={<DocumentUpload />} />
+                <Route path="/education/certificate" element={<CertificatePreview />} />
+              </Route>
+
+              {/* Admin-only routes */}
+              <Route path="/admin" element={
+                <AdminRoute>
+                  <AdminPanel />
+                </AdminRoute>
+              } />
+              <Route path="/admin/education" element={
+                <AdminRoute>
+                  <AdminEducationPanel />
+                </AdminRoute>
+              } />
+
+              {/* Fallback route */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
           </Router>
         </AuthProvider>
         <ReactQueryDevtools initialIsOpen={false} />
