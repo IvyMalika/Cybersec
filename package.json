@@ -1,7 +1,21 @@
 {
   "dependencies": {
+    "@hookform/resolvers": "^5.1.1",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/lab": "^7.0.0-beta.14",
     "@mui/material": "^7.2.0",
+    "@tanstack/react-query": "^5.83.0",
+    "@tanstack/react-query-devtools": "^5.83.0",
     "@vitejs/plugin-react": "^4.6.0",
-    "vite": "^7.0.4"
+    "axios": "^1.11.0",
+    "react-dropzone": "^14.3.8",
+    "react-hook-form": "^7.61.1",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.7.1",
+    "react-syntax-highlighter": "^15.6.1",
+    "react-window": "^1.8.11",
+    "recharts": "^3.1.0",
+    "vite": "^7.0.4",
+    "yup": "^1.6.1"
   }
 }
