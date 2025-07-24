@@ -212,7 +212,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   const filteredNavItems = navigationItems.filter(item => {
     if (item.id === 'sql-injection') {
-      // Always allow access to SQL Injection Scanner for admin and analyst
       return ['admin', 'analyst'].includes(user?.role || '');
     }
     if (!item.roles) return true;
@@ -239,7 +238,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {filteredNavItems.map((item) => (
           <ListItem
             key={item.id}
-            button={true} // Explicitly set for MUI ListItem, not native <li>
+            button
             onClick={() => handleNavigate(item.path)}
             sx={{
               mx: 1,
