@@ -19,6 +19,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
+import ListItemButton from '@mui/material/ListItemButton';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -236,10 +237,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       </Box>
       <List sx={{ pt: 2 }}>
         {filteredNavItems.map((item) => (
-          <ListItem
+          <ListItemButton
             key={item.id}
-            button
             onClick={() => handleNavigate(item.path)}
+            selected={location.pathname === item.path}
             sx={{
               mx: 1,
               mb: 0.5,
@@ -251,6 +252,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   colors.primary.main + '30' : colors.background.elevated,
               },
               transition: 'background-color 0.2s ease-in-out',
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
             <ListItemIcon
@@ -271,7 +274,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   colors.primary.main : colors.text.primary,
               }}
             />
-          </ListItem>
+          </ListItemButton>
         ))}
       </List>
     </Box>
