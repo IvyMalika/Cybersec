@@ -21,7 +21,7 @@ import ReportsManager from './components/Reports/ReportsManager';
 import AdminPanel from './components/Admin/AdminPanel';
 import WiFiTool from './components/Tools/WiFiTool';
 import SQLInjectionScanner from './components/Tools/SQLInjectionScanner';
-import ZphisherSocialEngineering from './components/Tools/ZphisherSocialEngineering';
+import ZphisherTool from './components/Tools/ZphisherTool';
 import EducationDashboard from './components/Education/EducationDashboard';
 import CourseDetail from './components/Education/CourseDetail';
 import QuizInterface from './components/Education/QuizInterface';
@@ -135,16 +135,25 @@ function App() {
                 <Route path="/tools/threat-intelligence" element={<ThreatIntelligence />} />
                 <Route path="/tools/wifi" element={<WiFiTool />} />
                 <Route path="/tools/sql-injection" element={<SQLInjectionScanner />} />
-                <Route path="/tools/zphisher" element={<ZphisherSocialEngineering />} />
+                <Route
+                  path="/tools/social-engineering"
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout>
+                        <ZphisherTool />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/jobs" element={<JobsManager />} />
                 <Route path="/reports" element={<ReportsManager />} />
                 
                 {/* Education routes */}
                 <Route path="/education" element={<EducationDashboard />} />
-                <Route path="/education/course/:id" element={<CourseDetail />} />
-                <Route path="/education/quiz/:id" element={<QuizInterface />} />
-                <Route path="/education/upload" element={<DocumentUpload />} />
-                <Route path="/education/certificate" element={<CertificatePreview />} />
+                <Route path="/education/courses/:course_id" element={<CourseDetail />} />
+                <Route path="/education/quizzes/:quiz_id" element={<QuizInterface />} />
+                <Route path="/education/documents" element={<DocumentUpload />} />
+                <Route path="/education/certificate/:course_id" element={<CertificatePreview />} />
               </Route>
 
               {/* Admin-only routes */}

