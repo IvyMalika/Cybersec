@@ -38,6 +38,9 @@ import {
   AdminPanelSettings as AdminIcon,
   Wifi as WifiIcon,
   Phishing as PhishingIcon,
+  School as SchoolIcon,
+  Description as DescriptionIcon,
+  WorkspacePremium as WorkspacePremiumIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -145,6 +148,26 @@ const navigationItems: NavigationItem[] = [
     label: 'Administration',
     icon: <AdminIcon />,
     path: '/admin',
+    roles: ['admin'],
+  },
+  {
+    id: 'education-dashboard',
+    label: 'Education',
+    icon: <SchoolIcon />,
+    path: '/education',
+  },
+  {
+    id: 'education-documents',
+    label: 'Document Review',
+    icon: <DescriptionIcon />,
+    path: '/education/documents',
+    roles: ['admin', 'analyst', 'user'],
+  },
+  {
+    id: 'admin-education',
+    label: 'Admin Education',
+    icon: <WorkspacePremiumIcon />,
+    path: '/admin/education',
     roles: ['admin'],
   },
 ];
