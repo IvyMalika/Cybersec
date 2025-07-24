@@ -239,7 +239,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {filteredNavItems.map((item) => (
           <ListItem
             key={item.id}
-            button
+            button={true} // Explicitly set for MUI ListItem, not native <li>
             onClick={() => handleNavigate(item.path)}
             sx={{
               mx: 1,
