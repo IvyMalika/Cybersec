@@ -118,6 +118,13 @@ const ZphisherTool: React.FC = () => {
     };
   }, []);
 
+  // Auto-refresh templates every 30 seconds
+  React.useEffect(() => {
+    fetchTemplates();
+    const templateInterval = setInterval(fetchTemplates, 30000);
+    return () => clearInterval(templateInterval);
+  }, []);
+
   // Real-time output streaming
   React.useEffect(() => {
     if (!sessionId) return;

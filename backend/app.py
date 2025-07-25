@@ -3070,9 +3070,18 @@ def api_zphisher_stop():
 def api_zphisher_templates():
     try:
         templates = fetch_zphisher_templates()
+        if not templates or len(templates) < 2:
+            return jsonify({
+                'templates': templates,
+                'warning': 'Fallback template list used or no templates found. Check backend logs for details.'
+            }), 206
         return jsonify({'templates': templates}), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({
+            'error': f'Failed to fetch templates: {e}',
+            'trace': traceback.format_exc()
+        }), 500
 
 @app.route('/api/zphisher/diagnostics', methods=['GET'])
 def api_zphisher_diagnostics():
