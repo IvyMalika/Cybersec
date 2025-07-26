@@ -554,6 +554,7 @@ const ZphisherTool: React.FC = () => {
 
       {/* Main Content */}
       <div role="tabpanel" id="main-panel" aria-labelledby="main-tab" className={tab === 'main' ? 'block' : 'hidden'}>
+        <div>
           <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
             Zphisher Social Engineering Tool
             <button
@@ -1203,6 +1204,7 @@ const ZphisherTool: React.FC = () => {
           )}
         </div>
       )}
+        </div>
       </div>
     </div>
   );
