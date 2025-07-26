@@ -55,8 +55,8 @@ const ZphisherTool: React.FC = () => {
   });
   const [wizardErrors, setWizardErrors] = useState<Record<string, string>>({});
   const [showNotifications, setShowNotifications] = useState(true);
-  const [terminalRef, useRef<HTMLDivElement>(null);
-  const [credentialsRef, useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const credentialsRef = useRef<HTMLDivElement>(null);
   const [historyFilter, setHistoryFilter] = useState({
     template: '',
     status: '',
