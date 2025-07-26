@@ -886,6 +886,36 @@ const ZphisherTool: React.FC = () => {
                 </select>
                 <div className="text-xs text-gray-600 mt-1">
                   <span className={ngrokAvailable ? 'text-green-700' : 'text-red-600'}>ngrok: {ngrokAvailable ? 'Available' : 'Not available'}</span>
+                  {!ngrokAvailable && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/zphisher/install-ngrok', { method: 'POST' });
+                          if (res.ok) {
+                            alert('ngrok installed successfully! Please refresh the page.');
+                            window.location.reload();
+                          } else {
+                            const isWindows = navigator.platform.indexOf('Win') !== -1;
+                            if (isWindows) {
+                              alert('Failed to install ngrok automatically. Please run install_ngrok_windows.bat or install manually from https://ngrok.com/download');
+                            } else {
+                              alert('Failed to install ngrok automatically. Please install manually from https://ngrok.com/download');
+                            }
+                          }
+                        } catch (e) {
+                          const isWindows = navigator.platform.indexOf('Win') !== -1;
+                          if (isWindows) {
+                            alert('Failed to install ngrok. Please run install_ngrok_windows.bat or install manually from https://ngrok.com/download');
+                          } else {
+                            alert('Failed to install ngrok. Please install manually from https://ngrok.com/download');
+                          }
+                        }
+                      }}
+                      className="ml-2 text-blue-600 underline text-xs"
+                    >
+                      Install ngrok
+                    </button>
+                  )}
                   {' | '}
                   <span className={sshAvailable ? 'text-green-700' : 'text-red-600'}>localhost.run: {sshAvailable ? 'Available' : 'Not available'}</span>
                   {' | '}
