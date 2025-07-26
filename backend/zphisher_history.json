@@ -1,0 +1,28 @@
+[
+  {
+    "session_id": "db543e75-ca6a-4f58-b169-ef5bc2b19d45",
+    "template": "Paypal",
+    "tunnel_type": "localhost.run",
+    "public_url": "https://admin.localhost.run",
+    "start_time": "2025-07-25T23:41:09.310712",
+    "stop_time": "2025-07-25T23:42:29.154492",
+    "status": "stopped",
+    "credentials": [],
+    "output": [
+      "bash: C:UsersHPcybersecCybersecbackendzphisherzphisher.sh: No such file or directory"
+    ]
+  },
+  {
+    "session_id": "f80f741e-4119-42a8-aaaa-92a80dffb7a5",
+    "template": "Facebook",
+    "tunnel_type": "localhost.run",
+    "public_url": "https://admin.localhost.run",
+    "start_time": "2025-07-25T23:39:45.814353",
+    "stop_time": "2025-07-25T23:40:55.519751",
+    "status": "stopped",
+    "credentials": [],
+    "output": [
+      "bash: C:UsersHPcybersecCybersecbackendzphisherzphisher.sh: No such file or directory"
+    ]
+  }
+]
