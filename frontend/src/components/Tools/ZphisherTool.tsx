@@ -79,6 +79,12 @@ const ZphisherTool: React.FC = () => {
     }
   });
 
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('zphisher_dark_mode', String(newMode));
+  };
+
   // Toast notification for new credentials
   const showCredentialNotification = (credential: string) => {
     if (showNotifications && 'Notification' in window && Notification.permission === 'granted') {
@@ -1060,8 +1066,10 @@ const ZphisherTool: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-      {tab === 'history' && (
+      </div>
+
+      {/* History Tab Content */}
+      <div role="tabpanel" id="history-panel" aria-labelledby="history-tab" className={tab === 'history' ? 'block' : 'hidden'}>
         <div>
           <h2 className="text-xl font-bold mb-4">Session History</h2>
           
@@ -1233,11 +1241,9 @@ const ZphisherTool: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-        </div>
       </div>
     </div>
   );
 };
 
-export default ZphisherTool; 
+export default ZphisherTool;
