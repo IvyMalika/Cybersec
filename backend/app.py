@@ -3094,6 +3094,18 @@ def api_zphisher_diagnostics():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/zphisher/install-ngrok', methods=['POST'])
+def api_zphisher_install_ngrok():
+    try:
+        from zphisher_service import install_ngrok
+        success = install_ngrok()
+        if success:
+            return jsonify({'message': 'ngrok installed successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to install ngrok automatically. Please install manually.'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/zphisher/history', methods=['GET'])
 def api_zphisher_history():
     return jsonify({'sessions': get_history()}), 200

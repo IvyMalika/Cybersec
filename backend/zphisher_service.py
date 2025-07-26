@@ -87,9 +87,29 @@ def run_bash_command(cmd_list):
 
 def check_ngrok_available():
     try:
-        result = subprocess.run(run_bash_command(['ngrok', 'version']), capture_output=True, text=True, timeout=5)
-        return result.returncode == 0
-    except Exception:
+        # Check if ngrok is installed and accessible
+        result = subprocess.run(
+            run_bash_command(['ngrok', 'version']), 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            print(f"ngrok version: {result.stdout.strip()}")
+            return True
+        else:
+            print(f"ngrok check failed: {result.stderr}")
+            return False
+            
+    except FileNotFoundError:
+        print("ngrok not found in PATH")
+        return False
+    except subprocess.TimeoutExpired:
+        print("ngrok version check timed out")
+        return False
+    except Exception as e:
+        print(f"ngrok availability check error: {e}")
         return False
 
 def check_ssh_available():
@@ -99,28 +119,169 @@ def check_ssh_available():
     except Exception:
         return False
 
+def install_ngrok():
+    """Attempt to install ngrok if not available"""
+    try:
+        import platform
+        system = platform.system().lower()
+        
+        if system == 'linux':
+            # Download and install ngrok for Linux
+            print("Installing ngrok for Linux...")
+            subprocess.run([
+                'curl', '-s', 'https://ngrok-agent.s3.amazonaws.com/ngrok.asc', '|', 'sudo', 'tee', '/etc/apt/trusted.gpg.d/ngrok.asc', '>', '/dev/null'
+            ], check=True)
+            subprocess.run([
+                'echo', '"deb https://ngrok-agent.s3.amazonaws.com buster main"', '|', 'sudo', 'tee', '/etc/apt/sources.list.d/ngrok.list'
+            ], check=True)
+            subprocess.run(['sudo', 'apt', 'update'], check=True)
+            subprocess.run(['sudo', 'apt', 'install', 'ngrok'], check=True)
+            print("ngrok installed successfully!")
+            return True
+        elif system == 'darwin':  # macOS
+            print("Installing ngrok for macOS...")
+            subprocess.run(['brew', 'install', 'ngrok/ngrok/ngrok'], check=True)
+            print("ngrok installed successfully!")
+            return True
+        elif system == 'windows':
+            print("Installing ngrok for Windows...")
+            import tempfile
+            import zipfile
+            import urllib.request
+            
+            # Download ngrok for Windows
+            ngrok_url = "https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip"
+            temp_dir = tempfile.gettempdir()
+            zip_path = os.path.join(temp_dir, "ngrok.zip")
+            
+            print("Downloading ngrok...")
+            urllib.request.urlretrieve(ngrok_url, zip_path)
+            
+            # Extract ngrok
+            print("Extracting ngrok...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # Move ngrok.exe to a directory in PATH
+            ngrok_exe = os.path.join(temp_dir, "ngrok.exe")
+            if os.path.exists(ngrok_exe):
+                # Try to copy to a directory in PATH
+                import shutil
+                import sys
+                
+                # Common Windows PATH directories
+                path_dirs = [
+                    os.path.join(os.environ.get('PROGRAMFILES', 'C:\\Program Files'), 'ngrok'),
+                    os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~\\AppData\\Local')), 'ngrok'),
+                    os.path.join(os.environ.get('APPDATA', os.path.expanduser('~\\AppData\\Roaming')), 'ngrok'),
+                    os.path.expanduser('~\\ngrok')
+                ]
+                
+                installed = False
+                for path_dir in path_dirs:
+                    try:
+                        os.makedirs(path_dir, exist_ok=True)
+                        dest_path = os.path.join(path_dir, "ngrok.exe")
+                        shutil.copy2(ngrok_exe, dest_path)
+                        
+                        # Add to PATH if not already there
+                        current_path = os.environ.get('PATH', '')
+                        if path_dir not in current_path:
+                            os.environ['PATH'] = current_path + os.pathsep + path_dir
+                        
+                        print(f"ngrok installed to: {dest_path}")
+                        print("Please add this directory to your PATH environment variable:")
+                        print(f"  {path_dir}")
+                        installed = True
+                        break
+                    except Exception as e:
+                        print(f"Failed to install to {path_dir}: {e}")
+                        continue
+                
+                if not installed:
+                    print("Failed to install ngrok to any directory in PATH")
+                    print(f"ngrok.exe is available at: {ngrok_exe}")
+                    print("Please manually add it to your PATH")
+                    return False
+                
+                # Clean up
+                try:
+                    os.remove(zip_path)
+                    os.remove(ngrok_exe)
+                except:
+                    pass
+                
+                print("ngrok installed successfully!")
+                return True
+            else:
+                print("Failed to extract ngrok.exe")
+                return False
+        else:
+            print(f"Automatic ngrok installation not supported for {system}")
+            print("Please install ngrok manually from https://ngrok.com/download")
+            return False
+            
+    except Exception as e:
+        print(f"Failed to install ngrok: {e}")
+        print("Please install ngrok manually from https://ngrok.com/download")
+        return False
+
 def start_tunnel(tunnel_type, port):
     if tunnel_type == 'ngrok':
+        # Check if ngrok is available
+        if not check_ngrok_available():
+            raise Exception("ngrok is not available. Please install ngrok first.")
+        
+        # Set ngrok auth token if available
         ngrok_token = os.environ.get('NGROK_AUTHTOKEN')
         if ngrok_token:
-            subprocess.run(run_bash_command(['ngrok', 'authtoken', ngrok_token]), check=False)
-        tunnel_proc = subprocess.Popen(run_bash_command(['ngrok', 'http', str(port)]), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        url = None
-        for _ in range(30):
             try:
-                import requests
-                resp = requests.get('http://localhost:4040/api/tunnels')
-                tunnels = resp.json().get('tunnels', [])
-                for t in tunnels:
-                    if t['proto'] == 'https':
-                        url = t['public_url']
-                        break
-                if url:
-                    break
-            except Exception:
-                pass
-            time.sleep(1)
-        return tunnel_proc, url
+                subprocess.run(run_bash_command(['ngrok', 'authtoken', ngrok_token]), 
+                             capture_output=True, text=True, timeout=10, check=False)
+            except Exception as e:
+                print(f"Warning: Failed to set ngrok auth token: {e}")
+        
+        # Start ngrok tunnel
+        try:
+            tunnel_proc = subprocess.Popen(
+                run_bash_command(['ngrok', 'http', str(port), '--log=stdout']), 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, 
+                text=True
+            )
+            
+            # Wait for ngrok to start and get the public URL
+            url = None
+            max_attempts = 30
+            
+            for attempt in range(max_attempts):
+                try:
+                    import requests
+                    resp = requests.get('http://localhost:4040/api/tunnels', timeout=5)
+                    if resp.status_code == 200:
+                        tunnels = resp.json().get('tunnels', [])
+                        for tunnel in tunnels:
+                            if tunnel.get('proto') == 'https':
+                                url = tunnel.get('public_url')
+                                if url:
+                                    print(f"ngrok tunnel established: {url}")
+                                    break
+                        if url:
+                            break
+                except Exception as e:
+                    print(f"Attempt {attempt + 1}: Waiting for ngrok tunnel... ({e})")
+                
+                time.sleep(1)
+            
+            if not url:
+                # Try to get URL from ngrok output
+                tunnel_proc.terminate()
+                raise Exception("Failed to establish ngrok tunnel after 30 seconds")
+            
+            return tunnel_proc, url
+            
+        except Exception as e:
+            raise Exception(f"Failed to start ngrok tunnel: {e}")
     elif tunnel_type == 'localhost.run':
         tunnel_proc = subprocess.Popen(run_bash_command(['ssh', '-o', 'StrictHostKeyChecking=no', '-R', f'80:localhost:{port}', 'nokey@localhost.run']), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         url = None
