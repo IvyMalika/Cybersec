@@ -150,7 +150,7 @@ const QuizInterface: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ answers })
       });
@@ -264,4 +264,4 @@ const QuizInterface: React.FC = () => {
   );
 };
 
-export default QuizInterface; 
+export default QuizInterface;
