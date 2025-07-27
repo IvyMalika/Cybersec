@@ -59,6 +59,7 @@ from zphisher_service import (
     get_history, get_history_detail, export_session_log
 )
 from flask_socketio import SocketIO, emit
+from sherlock_tool import sherlock_tool
 
 # Load environment variables
 load_dotenv()
@@ -3166,6 +3167,83 @@ def fetch_zphisher_templates():
             "DevianArt", "Protonmail", "Spotify", "Adobe", "Shopify", "Messenger", "Dropbox", "eBay",
             "Badoo", "Origin", "CryptoCoin", "XBOX", "MediaFire", "GitLab", "PornHub", "Custom"
         ]
+
+# --- Sherlock Username Enumeration Endpoints ---
+@app.route('/api/tools/sherlock/search', methods=['POST'])
+@jwt_required()
+def sherlock_search():
+    try:
+        current_user = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        username = data.get('username')
+        platforms = data.get('platforms')  # List of specific platforms
+        timeout = data.get('timeout', 300)
+        
+        if not username:
+            return jsonify({"error": "Username is required"}), 400
+        
+        # Start sherlock search
+        result = sherlock_tool.start_username_search(username, platforms, timeout)
+        
+        # Log activity
+        log_activity(current_user, 'sherlock_search', 'username', username)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        app.logger.error(f"Sherlock search error: {e}")
+        return jsonify({"error": "Failed to start username search"}), 500
+
+@app.route('/api/tools/sherlock/status/<session_id>', methods=['GET'])
+@jwt_required()
+def sherlock_status(session_id):
+    try:
+        status = sherlock_tool.get_session_status(session_id)
+        if not status:
+            return jsonify({"error": "Session not found"}), 404
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        app.logger.error(f"Sherlock status error: {e}")
+        return jsonify({"error": "Failed to get session status"}), 500
+
+@app.route('/api/tools/sherlock/sessions', methods=['GET'])
+@jwt_required()
+def sherlock_sessions():
+    try:
+        sessions = sherlock_tool.get_all_sessions()
+        return jsonify({"sessions": sessions}), 200
+        
+    except Exception as e:
+        app.logger.error(f"Sherlock sessions error: {e}")
+        return jsonify({"error": "Failed to get sessions"}), 500
+
+@app.route('/api/tools/sherlock/stop/<session_id>', methods=['POST'])
+@jwt_required()
+def sherlock_stop(session_id):
+    try:
+        success = sherlock_tool.stop_session(session_id)
+        if success:
+            return jsonify({"message": "Session stopped successfully"}), 200
+        else:
+            return jsonify({"error": "Failed to stop session"}), 400
+            
+    except Exception as e:
+        app.logger.error(f"Sherlock stop error: {e}")
+        return jsonify({"error": "Failed to stop session"}), 500
+
+@app.route('/api/tools/sherlock/platforms', methods=['GET'])
+@jwt_required()
+def sherlock_platforms():
+    try:
+        platforms = sherlock_tool.get_available_platforms()
+        return jsonify({"platforms": platforms}), 200
+        
+    except Exception as e:
+        app.logger.error(f"Sherlock platforms error: {e}")
+        return jsonify({"error": "Failed to get platforms"}), 500
 
 if __name__ == '__main__':
     # Setup logging

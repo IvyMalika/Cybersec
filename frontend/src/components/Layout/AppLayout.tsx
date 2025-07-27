@@ -42,6 +42,8 @@ import {
   School as SchoolIcon,
   Description as DescriptionIcon,
   WorkspacePremium as WorkspacePremiumIcon,
+  Psychology as PsychologyIcon,
+  PersonSearch as PersonSearchIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -128,9 +130,16 @@ const navigationItems: NavigationItem[] = [
   {
     id: 'social-engineering',
     label: 'Social Engineering',
-    icon: <PhishingIcon />,
+    icon: <PsychologyIcon />,
     path: '/tools/social-engineering',
-    roles: ['admin', 'analyst'],
+    roles: ['admin', 'analyst', 'user'],
+  },
+  {
+    id: 'sherlock',
+    label: 'Username Enumeration',
+    icon: <PersonSearchIcon />,
+    path: '/tools/sherlock',
+    roles: ['admin', 'analyst', 'user'],
   },
   {
     id: 'reports',
