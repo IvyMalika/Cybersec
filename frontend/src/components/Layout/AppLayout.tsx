@@ -44,6 +44,7 @@ import {
   WorkspacePremium as WorkspacePremiumIcon,
   Psychology as PsychologyIcon,
   PersonSearch as PersonSearchIcon,
+  Gavel as GavelIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -160,6 +161,13 @@ const navigationItems: NavigationItem[] = [
     label: 'Social Engineer Toolkit',
     icon: <PsychologyIcon />,
     path: '/tools/set',
+    roles: ['admin', 'analyst'],
+  },
+  {
+    id: 'mass-report',
+    label: 'Mass Report Tool',
+    icon: <GavelIcon />,
+    path: '/tools/mass-report',
     roles: ['admin', 'analyst'],
   },
   {

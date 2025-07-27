@@ -63,6 +63,7 @@ from sherlock_tool import sherlock_tool
 from metasploit_tool import metasploit_tool
 from zap_tool import zap_tool
 from set_tool import set_tool
+from mass_report_tool import mass_report_tool
 
 # Load environment variables
 load_dotenv()
@@ -3649,6 +3650,139 @@ def set_generate_report(session_id):
         return jsonify(result)
     except Exception as e:
         app.logger.error(f"Error generating SET report: {e}")
+        return jsonify({'error': 'Failed to generate report'}), 500
+
+# Mass Report Tool API endpoints
+@app.route('/api/tools/mass-report/status', methods=['GET'])
+@jwt_required()
+def mass_report_status():
+    """Check mass report tool status"""
+    try:
+        return jsonify({'status': 'available', 'message': 'Mass report tool is ready'})
+    except Exception as e:
+        app.logger.error(f"Error checking mass report status: {e}")
+        return jsonify({'error': 'Failed to check status'}), 500
+
+@app.route('/api/tools/mass-report/report-types', methods=['GET'])
+@jwt_required()
+def mass_report_types():
+    """Get available report types"""
+    try:
+        report_types = mass_report_tool.get_report_types()
+        return jsonify({'report_types': report_types})
+    except Exception as e:
+        app.logger.error(f"Error getting mass report types: {e}")
+        return jsonify({'error': 'Failed to get report types'}), 500
+
+@app.route('/api/tools/mass-report/reasons/<report_type>', methods=['GET'])
+@jwt_required()
+def mass_report_reasons(report_type):
+    """Get reasons for a specific report type"""
+    try:
+        reasons = mass_report_tool.get_report_reasons(report_type)
+        return jsonify({'reasons': reasons})
+    except Exception as e:
+        app.logger.error(f"Error getting mass report reasons: {e}")
+        return jsonify({'error': 'Failed to get reasons'}), 500
+
+@app.route('/api/tools/mass-report/educational-info', methods=['GET'])
+@jwt_required()
+def mass_report_educational_info():
+    """Get educational information about mass reporting"""
+    try:
+        info = mass_report_tool.get_educational_info()
+        return jsonify(info)
+    except Exception as e:
+        app.logger.error(f"Error getting mass report educational info: {e}")
+        return jsonify({'error': 'Failed to get educational info'}), 500
+
+@app.route('/api/tools/mass-report/campaign/start', methods=['POST'])
+@jwt_required()
+def mass_report_start_campaign():
+    """Start a mass reporting campaign"""
+    try:
+        data = request.get_json()
+        target_url = data.get('target_url')
+        report_type = data.get('report_type', 'spam')
+        report_reason = data.get('report_reason', '')
+        
+        if not target_url:
+            return jsonify({'error': 'Missing required parameter: target_url'}), 400
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Configure campaign
+        config = {
+            'target_url': target_url,
+            'report_type': report_type,
+            'report_reason': report_reason,
+            'user_agent': data.get('user_agent', ''),
+            'proxy_list': data.get('proxy_list', []),
+            'delay_min': data.get('delay_min', 1.0),
+            'delay_max': data.get('delay_max', 3.0),
+            'max_reports': data.get('max_reports', 100),
+            'timeout': data.get('timeout', 30),
+            'use_proxies': data.get('use_proxies', False),
+            'rotate_user_agents': data.get('rotate_user_agents', True)
+        }
+        
+        # Start the campaign
+        result = mass_report_tool.start_mass_report_campaign(session_id, config)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting mass report campaign: {e}")
+        return jsonify({'error': 'Failed to start campaign'}), 500
+
+@app.route('/api/tools/mass-report/session/<session_id>/status', methods=['GET'])
+@jwt_required()
+def mass_report_session_status(session_id):
+    """Get status of a campaign session"""
+    try:
+        status = mass_report_tool.get_session_status(session_id)
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error getting mass report session status: {e}")
+        return jsonify({'error': 'Failed to get session status'}), 500
+
+@app.route('/api/tools/mass-report/session/<session_id>/stop', methods=['POST'])
+@jwt_required()
+def mass_report_stop_session(session_id):
+    """Stop an active campaign session"""
+    try:
+        result = mass_report_tool.stop_session(session_id)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error stopping mass report session: {e}")
+        return jsonify({'error': 'Failed to stop session'}), 500
+
+@app.route('/api/tools/mass-report/sessions', methods=['GET'])
+@jwt_required()
+def mass_report_sessions():
+    """Get all active and completed sessions"""
+    try:
+        sessions = mass_report_tool.get_all_sessions()
+        return jsonify({'sessions': sessions})
+    except Exception as e:
+        app.logger.error(f"Error getting mass report sessions: {e}")
+        return jsonify({'error': 'Failed to get sessions'}), 500
+
+@app.route('/api/tools/mass-report/session/<session_id>/report', methods=['POST'])
+@jwt_required()
+def mass_report_generate_report(session_id):
+    """Generate a report for a campaign session"""
+    try:
+        data = request.get_json()
+        report_format = data.get('format', 'html')
+        
+        result = mass_report_tool.generate_report(session_id, report_format)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error generating mass report: {e}")
         return jsonify({'error': 'Failed to generate report'}), 500
 
 if __name__ == '__main__':

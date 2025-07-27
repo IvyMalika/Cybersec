@@ -33,6 +33,7 @@ import SherlockTool from './components/Tools/SherlockTool';
 import MetasploitTool from './components/Tools/MetasploitTool';
 import ZAPTool from './components/Tools/ZAPTool';
 import SETTool from './components/Tools/SETTool';
+import MassReportTool from './components/Tools/MassReportTool';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -153,6 +154,7 @@ function App() {
         <Route path="/tools/metasploit" element={<MetasploitTool />} />
         <Route path="/tools/zap" element={<ZAPTool />} />
         <Route path="/tools/set" element={<SETTool />} />
+        <Route path="/tools/mass-report" element={<MassReportTool />} />
                 <Route path="/jobs" element={<JobsManager />} />
                 <Route path="/reports" element={<ReportsManager />} />
                 
