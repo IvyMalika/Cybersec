@@ -156,6 +156,13 @@ const navigationItems: NavigationItem[] = [
     roles: ['admin', 'analyst'],
   },
   {
+    id: 'set',
+    label: 'Social Engineer Toolkit',
+    icon: <PsychologyIcon />,
+    path: '/tools/set',
+    roles: ['admin', 'analyst'],
+  },
+  {
     id: 'reports',
     label: 'Reports',
     icon: <AssessmentIcon />,

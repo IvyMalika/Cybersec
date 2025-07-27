@@ -32,6 +32,7 @@ import LandingPage from './components/Landing/LandingPage';
 import SherlockTool from './components/Tools/SherlockTool';
 import MetasploitTool from './components/Tools/MetasploitTool';
 import ZAPTool from './components/Tools/ZAPTool';
+import SETTool from './components/Tools/SETTool';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -151,6 +152,7 @@ function App() {
                 <Route path="/tools/sherlock" element={<SherlockTool />} />
         <Route path="/tools/metasploit" element={<MetasploitTool />} />
         <Route path="/tools/zap" element={<ZAPTool />} />
+        <Route path="/tools/set" element={<SETTool />} />
                 <Route path="/jobs" element={<JobsManager />} />
                 <Route path="/reports" element={<ReportsManager />} />
                 

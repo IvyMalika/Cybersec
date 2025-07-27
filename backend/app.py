@@ -62,6 +62,7 @@ from flask_socketio import SocketIO, emit
 from sherlock_tool import sherlock_tool
 from metasploit_tool import metasploit_tool
 from zap_tool import zap_tool
+from set_tool import set_tool
 
 # Load environment variables
 load_dotenv()
@@ -3459,6 +3460,195 @@ def zap_generate_report(session_id):
         return jsonify(result)
     except Exception as e:
         app.logger.error(f"Error generating ZAP report: {e}")
+        return jsonify({'error': 'Failed to generate report'}), 500
+
+# Social Engineer Toolkit (SET) API endpoints
+@app.route('/api/tools/set/status', methods=['GET'])
+@jwt_required()
+def set_status():
+    """Check SET installation status"""
+    try:
+        status = set_tool.check_installation()
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error checking SET status: {e}")
+        return jsonify({'error': 'Failed to check SET status'}), 500
+
+@app.route('/api/tools/set/attacks', methods=['GET'])
+@jwt_required()
+def set_attacks():
+    """Get available social engineering attacks"""
+    try:
+        attacks = set_tool.get_available_attacks()
+        return jsonify({'attacks': attacks})
+    except Exception as e:
+        app.logger.error(f"Error getting SET attacks: {e}")
+        return jsonify({'error': 'Failed to get attacks'}), 500
+
+@app.route('/api/tools/set/templates', methods=['GET'])
+@jwt_required()
+def set_templates():
+    """Get available attack templates"""
+    try:
+        templates = set_tool.get_attack_templates()
+        return jsonify({'templates': templates})
+    except Exception as e:
+        app.logger.error(f"Error getting SET templates: {e}")
+        return jsonify({'error': 'Failed to get templates'}), 500
+
+@app.route('/api/tools/set/attack/spear-phishing', methods=['POST'])
+@jwt_required()
+def set_spear_phishing():
+    """Start a spear-phishing attack"""
+    try:
+        data = request.get_json()
+        targets = data.get('targets', [])
+        payload_type = data.get('payload_type', 'windows')
+        email_template = data.get('email_template', 'default')
+        custom_template = data.get('custom_template', '')
+        
+        if not targets:
+            return jsonify({'error': 'Missing required parameter: targets'}), 400
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Configure attack
+        config = {
+            'targets': targets,
+            'payload_type': payload_type,
+            'email_template': email_template,
+            'custom_template': custom_template,
+            'smtp_server': data.get('smtp_server', 'localhost'),
+            'smtp_port': data.get('smtp_port', 25),
+            'smtp_username': data.get('smtp_username', ''),
+            'smtp_password': data.get('smtp_password', '')
+        }
+        
+        # Start the attack
+        result = set_tool.start_spear_phishing_attack(session_id, config)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting spear-phishing attack: {e}")
+        return jsonify({'error': 'Failed to start attack'}), 500
+
+@app.route('/api/tools/set/attack/web-attack', methods=['POST'])
+@jwt_required()
+def set_web_attack():
+    """Start a web attack (credential harvester)"""
+    try:
+        data = request.get_json()
+        target_url = data.get('target_url', '')
+        port = data.get('port', 80)
+        ssl = data.get('ssl', False)
+        
+        if not target_url:
+            return jsonify({'error': 'Missing required parameter: target_url'}), 400
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Configure attack
+        config = {
+            'target_url': target_url,
+            'port': port,
+            'ssl': ssl,
+            'website_template': data.get('website_template', 'default')
+        }
+        
+        # Start the attack
+        result = set_tool.start_web_attack(session_id, config)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting web attack: {e}")
+        return jsonify({'error': 'Failed to start attack'}), 500
+
+@app.route('/api/tools/set/attack/payload-generation', methods=['POST'])
+@jwt_required()
+def set_payload_generation():
+    """Start payload generation"""
+    try:
+        data = request.get_json()
+        payload_type = data.get('payload_type', 'windows')
+        output_dir = data.get('output_dir', '/tmp/set_payloads')
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Configure payload generation
+        config = {
+            'payload_type': payload_type,
+            'output_dir': output_dir,
+            'lhost': data.get('lhost', ''),
+            'lport': data.get('lport', 4444),
+            'encoder': data.get('encoder', ''),
+            'iterations': data.get('iterations', 1)
+        }
+        
+        # Start payload generation
+        result = set_tool.start_payload_generation(session_id, config)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting payload generation: {e}")
+        return jsonify({'error': 'Failed to start payload generation'}), 500
+
+@app.route('/api/tools/set/session/<session_id>/status', methods=['GET'])
+@jwt_required()
+def set_session_status(session_id):
+    """Get status of an attack session"""
+    try:
+        status = set_tool.get_session_status(session_id)
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error getting SET session status: {e}")
+        return jsonify({'error': 'Failed to get session status'}), 500
+
+@app.route('/api/tools/set/session/<session_id>/stop', methods=['POST'])
+@jwt_required()
+def set_stop_session(session_id):
+    """Stop an active attack session"""
+    try:
+        result = set_tool.stop_session(session_id)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error stopping SET session: {e}")
+        return jsonify({'error': 'Failed to stop session'}), 500
+
+@app.route('/api/tools/set/sessions', methods=['GET'])
+@jwt_required()
+def set_sessions():
+    """Get all active and completed sessions"""
+    try:
+        sessions = set_tool.get_all_sessions()
+        return jsonify({'sessions': sessions})
+    except Exception as e:
+        app.logger.error(f"Error getting SET sessions: {e}")
+        return jsonify({'error': 'Failed to get sessions'}), 500
+
+@app.route('/api/tools/set/session/<session_id>/report', methods=['POST'])
+@jwt_required()
+def set_generate_report(session_id):
+    """Generate a report for an attack session"""
+    try:
+        data = request.get_json()
+        report_format = data.get('format', 'html')
+        
+        result = set_tool.generate_report(session_id, report_format)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error generating SET report: {e}")
         return jsonify({'error': 'Failed to generate report'}), 500
 
 if __name__ == '__main__':
