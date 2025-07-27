@@ -44,6 +44,7 @@ import {
   WorkspacePremium as WorkspacePremiumIcon,
   Psychology as PsychologyIcon,
   PersonSearch as PersonSearchIcon,
+  Gavel as GavelIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -140,6 +141,34 @@ const navigationItems: NavigationItem[] = [
     icon: <PersonSearchIcon />,
     path: '/tools/sherlock',
     roles: ['admin', 'analyst', 'user'],
+  },
+  {
+    id: 'metasploit',
+    label: 'Metasploit Framework',
+    icon: <SecurityIcon />,
+    path: '/tools/metasploit',
+    roles: ['admin', 'analyst'],
+  },
+  {
+    id: 'zap',
+    label: 'OWASP ZAP Scanner',
+    icon: <BugReportIcon />,
+    path: '/tools/zap',
+    roles: ['admin', 'analyst'],
+  },
+  {
+    id: 'set',
+    label: 'Social Engineer Toolkit',
+    icon: <PsychologyIcon />,
+    path: '/tools/set',
+    roles: ['admin', 'analyst'],
+  },
+  {
+    id: 'mass-report',
+    label: 'Mass Report Tool',
+    icon: <GavelIcon />,
+    path: '/tools/mass-report',
+    roles: ['admin', 'analyst'],
   },
   {
     id: 'reports',

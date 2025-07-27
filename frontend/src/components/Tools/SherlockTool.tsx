@@ -6,9 +6,13 @@ import {
   Typography,
   TextField,
   Button,
-  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Chip,
-  CircularProgress,
+  LinearProgress,
+  Alert,
   Table,
   TableBody,
   TableCell,
@@ -18,464 +22,560 @@ import {
   Paper,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  OutlinedInput,
-  Checkbox,
-  ListItemText,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Divider,
-  Fade,
-  LinearProgress
+  Grid,
+  Divider
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Stop as StopIcon,
   Refresh as RefreshIcon,
-  Info as InfoIcon,
-  Security as SecurityIcon,
-  Person as PersonIcon,
-  Web as WebIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
-  ExpandMore as ExpandMoreIcon
+  Info as InfoIcon,
+  PersonSearch as PersonSearchIcon
 } from '@mui/icons-material';
 
-interface SherlockResult {
-  username: string;
+interface Platform {
   name: string;
-  url_main: string;
-  url_user: string;
-  exists: string;
-  category: string;
-  http_status: number;
-  response_time_ms: number;
-  domain: string;
+  url: string;
 }
 
-interface SherlockSession {
-  session_id: string;
-  username: string;
-  status: 'running' | 'completed' | 'error' | 'timeout' | 'stopped';
-  start_time: string;
-  end_time?: string;
-  results: SherlockResult[];
-  platforms: string | string[];
+interface SearchResult {
+  platform: string;
+  url: string;
+  status: 'found' | 'not_found' | 'error';
   error?: string;
+}
+
+interface SearchSession {
+  id: string;
+  username: string;
+  status: 'running' | 'completed' | 'failed' | 'stopped';
+  progress: number;
+  results: SearchResult[];
+  startTime: string;
+  endTime?: string;
 }
 
 const SherlockTool: React.FC = () => {
   const [username, setUsername] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+  const [availablePlatforms, setAvailablePlatforms] = useState<Platform[]>([]);
+  const [sessions, setSessions] = useState<SearchSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<SearchSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentSession, setCurrentSession] = useState<SherlockSession | null>(null);
-  const [sessions, setSessions] = useState<SherlockSession[]>([]);
-  const [showPlatformsDialog, setShowPlatformsDialog] = useState(false);
-  const [timeout, setTimeout] = useState(300);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Popular platforms for quick selection
-  const popularPlatforms = [
-    'Twitter', 'Instagram', 'Facebook', 'LinkedIn', 'GitHub', 
-    'YouTube', 'Reddit', 'TikTok', 'Snapchat', 'Pinterest'
-  ];
-
-  // Helper function to get auth headers
+  // Helper function to get auth headers with proper error handling
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('access_token');
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    };
-  };
-
-  useEffect(() => {
-    fetchAvailablePlatforms();
-    fetchSessions();
-  }, []);
-
-  const fetchAvailablePlatforms = async () => {
     try {
-      const response = await fetch('/api/tools/sherlock/platforms', {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAvailablePlatforms(data.platforms || popularPlatforms);
-      } else {
-        console.error('Failed to fetch platforms:', response.status);
-        setAvailablePlatforms(popularPlatforms);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No access token found');
       }
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
     } catch (error) {
-      console.error('Error fetching platforms:', error);
-      setAvailablePlatforms(popularPlatforms);
+      console.error('Error getting auth headers:', error);
+      return {
+        'Content-Type': 'application/json'
+      };
     }
   };
 
+  // Check authentication status
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/health', {
+        headers: getAuthHeaders()
+      });
+      setIsAuthenticated(response.ok);
+      return response.ok;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      return false;
+    }
+  };
+
+  // Fetch available platforms with retry mechanism
+  const fetchAvailablePlatforms = async (retryCount = 0) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/tools/sherlock/platforms', {
+        headers: getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 && retryCount < 2) {
+          // Try to re-authenticate
+          await checkAuth();
+          return fetchAvailablePlatforms(retryCount + 1);
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.platforms && Array.isArray(data.platforms)) {
+        setAvailablePlatforms(data.platforms);
+      } else {
+        // Fallback to sample platforms if API doesn't return expected format
+        setAvailablePlatforms([
+          { name: 'GitHub', url: 'https://github.com/{username}' },
+          { name: 'Twitter', url: 'https://twitter.com/{username}' },
+          { name: 'Instagram', url: 'https://instagram.com/{username}' },
+          { name: 'Facebook', url: 'https://facebook.com/{username}' },
+          { name: 'LinkedIn', url: 'https://linkedin.com/in/{username}' },
+          { name: 'Reddit', url: 'https://reddit.com/user/{username}' },
+          { name: 'YouTube', url: 'https://youtube.com/@{username}' },
+          { name: 'TikTok', url: 'https://tiktok.com/@{username}' }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching platforms:', error);
+      setError('Failed to load platforms. Using sample data.');
+      // Set fallback platforms
+      setAvailablePlatforms([
+        { name: 'GitHub', url: 'https://github.com/{username}' },
+        { name: 'Twitter', url: 'https://twitter.com/{username}' },
+        { name: 'Instagram', url: 'https://instagram.com/{username}' },
+        { name: 'Facebook', url: 'https://facebook.com/{username}' },
+        { name: 'LinkedIn', url: 'https://linkedin.com/in/{username}' },
+        { name: 'Reddit', url: 'https://reddit.com/user/{username}' },
+        { name: 'YouTube', url: 'https://youtube.com/@{username}' },
+        { name: 'TikTok', url: 'https://tiktok.com/@{username}' }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch existing sessions
   const fetchSessions = async () => {
     try {
       const response = await fetch('/api/tools/sherlock/sessions', {
         headers: getAuthHeaders()
       });
+
       if (response.ok) {
         const data = await response.json();
-        setSessions(data.sessions || []);
-      } else {
-        console.error('Failed to fetch sessions:', response.status);
+        if (data.sessions && Array.isArray(data.sessions)) {
+          setSessions(data.sessions);
+        }
       }
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
   };
 
-  const handleSearch = async () => {
+  // Start a new search
+  const startSearch = async () => {
     if (!username.trim()) {
-      setError('Please enter a username to search');
+      setError('Please enter a username');
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    if (selectedPlatforms.length === 0) {
+      setError('Please select at least one platform');
+      return;
+    }
 
     try {
+      setLoading(true);
+      setError(null);
+
       const response = await fetch('/api/tools/sherlock/search', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           username: username.trim(),
-          platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
-          timeout
+          platforms: selectedPlatforms,
+          timeout: 300
         })
       });
 
-      if (response.ok) {
-        const session = await response.json();
-        setCurrentSession(session);
-        
-        // Start polling for status updates
-        if (session.status === 'started') {
-          pollSessionStatus(session.session_id);
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+          return;
         }
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to start search');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error: any) {
-      setError(error.message || 'Failed to start search');
+
+      const data = await response.json();
+      if (data.session_id) {
+        // Create a new session object
+        const newSession: SearchSession = {
+          id: data.session_id,
+          username: username.trim(),
+          status: 'running',
+          progress: 0,
+          results: [],
+          startTime: new Date().toISOString()
+        };
+        
+        setCurrentSession(newSession);
+        setSessions(prev => [newSession, ...prev]);
+        
+        // Start polling for updates
+        pollSessionStatus(data.session_id);
+      }
+    } catch (error) {
+      console.error('Error starting search:', error);
+      setError('Failed to start search. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // Poll session status
   const pollSessionStatus = async (sessionId: string) => {
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(`/api/tools/sherlock/status/${sessionId}`, {
           headers: getAuthHeaders()
         });
-        
+
         if (response.ok) {
-          const session = await response.json();
-          setCurrentSession(session);
+          const data = await response.json();
           
-          if (session.status === 'completed' || session.status === 'error' || session.status === 'timeout') {
+          setCurrentSession(prev => {
+            if (prev && prev.id === sessionId) {
+              return {
+                ...prev,
+                status: data.status,
+                progress: data.progress || prev.progress,
+                results: data.results || prev.results,
+                endTime: data.status !== 'running' ? new Date().toISOString() : prev.endTime
+              };
+            }
+            return prev;
+          });
+
+          setSessions(prev => prev.map(session => 
+            session.id === sessionId 
+              ? {
+                  ...session,
+                  status: data.status,
+                  progress: data.progress || session.progress,
+                  results: data.results || session.results,
+                  endTime: data.status !== 'running' ? new Date().toISOString() : session.endTime
+                }
+              : session
+          ));
+
+          // Stop polling if session is complete
+          if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
             clearInterval(pollInterval);
-            fetchSessions(); // Refresh sessions list
           }
-        } else {
-          console.error('Error polling session status:', response.status);
-          clearInterval(pollInterval);
         }
       } catch (error) {
         console.error('Error polling session status:', error);
-        clearInterval(pollInterval);
       }
     }, 2000); // Poll every 2 seconds
+
+    // Cleanup after 10 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+    }, 600000);
   };
 
-  const handleStopSession = async (sessionId: string) => {
+  // Stop a search
+  const stopSearch = async (sessionId: string) => {
     try {
       const response = await fetch(`/api/tools/sherlock/stop/${sessionId}`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
-      
+
       if (response.ok) {
-        fetchSessions();
-        if (currentSession?.session_id === sessionId) {
-          setCurrentSession(prev => prev ? { ...prev, status: 'stopped' } : null);
+        setSessions(prev => prev.map(session => 
+          session.id === sessionId 
+            ? { ...session, status: 'stopped', endTime: new Date().toISOString() }
+            : session
+        ));
+        
+        if (currentSession?.id === sessionId) {
+          setCurrentSession(prev => prev ? { ...prev, status: 'stopped', endTime: new Date().toISOString() } : null);
         }
-      } else {
-        console.error('Error stopping session:', response.status);
       }
     } catch (error) {
-      console.error('Error stopping session:', error);
+      console.error('Error stopping search:', error);
+      setError('Failed to stop search');
     }
   };
 
+  // Handle platform selection
   const handlePlatformChange = (event: any) => {
-    const value = event.target.value;
-    setSelectedPlatforms(typeof value === 'string' ? value.split(',') : value);
+    setSelectedPlatforms(event.target.value);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running': return 'primary';
-      case 'completed': return 'success';
-      case 'error': return 'error';
-      case 'timeout': return 'warning';
-      case 'stopped': return 'default';
-      default: return 'default';
-    }
-  };
+  // Initialize component
+  useEffect(() => {
+    const initialize = async () => {
+      const authOk = await checkAuth();
+      if (authOk) {
+        await fetchAvailablePlatforms();
+        await fetchSessions();
+      } else {
+        setError('Authentication required. Please log in.');
+      }
+    };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running': return <CircularProgress size={16} />;
-      case 'completed': return <CheckCircleIcon />;
-      case 'error': return <ErrorIcon />;
-      case 'timeout': return <WarningIcon />;
-      case 'stopped': return <StopIcon />;
-      default: return <InfoIcon />;
-    }
-  };
+    initialize();
+  }, []);
 
-  const formatResults = (results: SherlockResult[]) => {
-    const found = results.filter(r => r.exists === 'yes');
-    const notFound = results.filter(r => r.exists === 'no');
-    
-    return { found, notFound, total: results.length };
-  };
+  // Auto-refresh sessions every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isAuthenticated) {
+        fetchSessions();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <SecurityIcon sx={{ mr: 1 }} />
-        Sherlock Username Enumeration
+    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <PersonSearchIcon />
+        Username Enumeration Tool
       </Typography>
 
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <Typography variant="body2">
-          Sherlock is a powerful tool for finding usernames across social media platforms. 
-          Enter a username to search across multiple platforms and discover where the username exists.
-        </Typography>
-      </Alert>
-
-      {/* Search Form */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Username Search
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <TextField
-              label="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username to search"
-              sx={{ minWidth: 200 }}
-              disabled={loading}
-            />
-            
-            <Button
-              variant="outlined"
-              onClick={() => setShowPlatformsDialog(true)}
-              disabled={loading}
-              startIcon={<WebIcon />}
-            >
-              {selectedPlatforms.length > 0 
-                ? `${selectedPlatforms.length} platforms selected`
-                : 'Select platforms'
-              }
-            </Button>
-            
-            <TextField
-              label="Timeout (seconds)"
-              type="number"
-              value={timeout}
-              onChange={(e) => setTimeout(Number(e.target.value))}
-              sx={{ width: 120 }}
-              disabled={loading}
-            />
-          </Box>
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          <Button
-            variant="contained"
-            onClick={handleSearch}
-            disabled={loading || !username.trim()}
-            startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
-            sx={{ mr: 1 }}
-          >
-            {loading ? 'Searching...' : 'Start Search'}
-          </Button>
-
-          {currentSession && currentSession.status === 'running' && (
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={() => handleStopSession(currentSession.session_id)}
-              startIcon={<StopIcon />}
-            >
-              Stop Search
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Current Session Results */}
-      {currentSession && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Search Results for "{currentSession.username}"
-              </Typography>
-              <Chip
-                icon={getStatusIcon(currentSession.status)}
-                label={currentSession.status.toUpperCase()}
-                color={getStatusColor(currentSession.status)}
-              />
-            </Box>
-
-            {currentSession.status === 'running' && (
-              <Box sx={{ width: '100%', mb: 2 }}>
-                <LinearProgress />
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Searching across platforms...
-                </Typography>
-              </Box>
-            )}
-
-            {currentSession.status === 'completed' && currentSession.results && (
-              <Box>
-                {(() => {
-                  const { found, notFound, total } = formatResults(currentSession.results);
-                  return (
-                    <Box>
-                      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <Chip label={`Found: ${found.length}`} color="success" />
-                        <Chip label={`Not Found: ${notFound.length}`} color="default" />
-                        <Chip label={`Total: ${total}`} color="primary" />
-                      </Box>
-
-                      <Accordion defaultExpanded>
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                          <Typography variant="subtitle1">
-                            Found Accounts ({found.length})
-                          </Typography>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                          <TableContainer component={Paper}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Platform</TableCell>
-                                  <TableCell>URL</TableCell>
-                                  <TableCell>Category</TableCell>
-                                  <TableCell>Response Time</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {found.map((result, index) => (
-                                  <TableRow key={index}>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <WebIcon sx={{ mr: 1 }} />
-                                        {result.name}
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      <a href={result.url_user} target="_blank" rel="noopener noreferrer">
-                                        {result.url_user}
-                                      </a>
-                                    </TableCell>
-                                    <TableCell>{result.category}</TableCell>
-                                    <TableCell>{result.response_time_ms}ms</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </AccordionDetails>
-                      </Accordion>
-                    </Box>
-                  );
-                })()}
-              </Box>
-            )}
-
-            {currentSession.error && (
-              <Alert severity="error">
-                Error: {currentSession.error}
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
       )}
+
+      {!isAuthenticated && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Please log in to use the username enumeration tool.
+        </Alert>
+      )}
+
+      <Grid container spacing={3}>
+        {/* Search Configuration */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Search Configuration
+              </Typography>
+              
+              <TextField
+                fullWidth
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username to search"
+                sx={{ mb: 2 }}
+                disabled={loading}
+              />
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Platforms</InputLabel>
+                <Select
+                  multiple
+                  value={selectedPlatforms}
+                  onChange={handlePlatformChange}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => (
+                        <Chip key={value} label={value} size="small" />
+                      ))}
+                    </Box>
+                  )}
+                  disabled={loading}
+                >
+                  {availablePlatforms.map((platform) => (
+                    <MenuItem key={platform.name} value={platform.name}>
+                      {platform.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={startSearch}
+                disabled={loading || !username.trim() || selectedPlatforms.length === 0 || !isAuthenticated}
+                startIcon={<SearchIcon />}
+                sx={{ mb: 1 }}
+              >
+                {loading ? 'Starting Search...' : 'Start Search'}
+              </Button>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => {
+                  setSelectedPlatforms(availablePlatforms.map(p => p.name));
+                }}
+                disabled={loading}
+                startIcon={<RefreshIcon />}
+              >
+                Select All Platforms
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Current Session */}
+        <Grid item xs={12} md={8}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Current Session
+              </Typography>
+              
+              {currentSession ? (
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle1">
+                      Searching for: <strong>{currentSession.username}</strong>
+                    </Typography>
+                    <Box>
+                      <Chip
+                        label={currentSession.status}
+                        color={
+                          currentSession.status === 'running' ? 'primary' :
+                          currentSession.status === 'completed' ? 'success' :
+                          currentSession.status === 'failed' ? 'error' : 'default'
+                        }
+                        size="small"
+                      />
+                      {currentSession.status === 'running' && (
+                        <IconButton
+                          size="small"
+                          onClick={() => stopSearch(currentSession.id)}
+                          color="error"
+                          sx={{ ml: 1 }}
+                        >
+                          <StopIcon />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {currentSession.status === 'running' && (
+                    <Box sx={{ mb: 2 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={currentSession.progress} 
+                        sx={{ mb: 1 }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        Progress: {currentSession.progress}%
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {currentSession.results.length > 0 && (
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Results ({currentSession.results.length} found)
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Platform</TableCell>
+                              <TableCell>URL</TableCell>
+                              <TableCell>Status</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {currentSession.results.map((result, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{result.platform}</TableCell>
+                                <TableCell>
+                                  <a href={result.url} target="_blank" rel="noopener noreferrer">
+                                    {result.url}
+                                  </a>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    icon={result.status === 'found' ? <CheckCircleIcon /> : <ErrorIcon />}
+                                    label={result.status === 'found' ? 'Found' : 'Not Found'}
+                                    color={result.status === 'found' ? 'success' : 'default'}
+                                    size="small"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <InfoIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="body1" color="text.secondary">
+                    No active search session. Start a new search to begin.
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Previous Sessions */}
       {sessions.length > 0 && (
-        <Card>
+        <Card sx={{ mt: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Previous Searches
+              Previous Sessions
             </Typography>
-            <TableContainer component={Paper}>
-              <Table size="small">
+            <TableContainer>
+              <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell>Username</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Platforms</TableCell>
+                    <TableCell>Results</TableCell>
                     <TableCell>Start Time</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {sessions.map((session) => (
-                    <TableRow key={session.session_id}>
+                    <TableRow key={session.id}>
                       <TableCell>{session.username}</TableCell>
                       <TableCell>
                         <Chip
-                          icon={getStatusIcon(session.status)}
                           label={session.status}
-                          color={getStatusColor(session.status)}
+                          color={
+                            session.status === 'running' ? 'primary' :
+                            session.status === 'completed' ? 'success' :
+                            session.status === 'failed' ? 'error' : 'default'
+                          }
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
-                        {Array.isArray(session.platforms) 
-                          ? session.platforms.join(', ')
-                          : session.platforms
-                        }
+                        {session.results.filter(r => r.status === 'found').length} found
                       </TableCell>
                       <TableCell>
-                        {new Date(session.start_time).toLocaleString()}
+                        {new Date(session.startTime).toLocaleString()}
                       </TableCell>
                       <TableCell>
                         {session.status === 'running' && (
-                          <Tooltip title="Stop search">
+                          <Tooltip title="Stop Search">
                             <IconButton
                               size="small"
-                              onClick={() => handleStopSession(session.session_id)}
+                              onClick={() => stopSearch(session.id)}
+                              color="error"
                             >
                               <StopIcon />
                             </IconButton>
@@ -490,46 +590,6 @@ const SherlockTool: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Platforms Selection Dialog */}
-      <Dialog
-        open={showPlatformsDialog}
-        onClose={() => setShowPlatformsDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Select Platforms</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            Select specific platforms to search. Leave empty to search all available platforms.
-          </Typography>
-          <FormControl fullWidth>
-            <InputLabel>Platforms</InputLabel>
-            <Select
-              multiple
-              value={selectedPlatforms}
-              onChange={handlePlatformChange}
-              input={<OutlinedInput label="Platforms" />}
-              renderValue={(selected) => selected.join(', ')}
-            >
-              {availablePlatforms.map((platform) => (
-                <MenuItem key={platform} value={platform}>
-                  <Checkbox checked={selectedPlatforms.indexOf(platform) > -1} />
-                  <ListItemText primary={platform} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedPlatforms([])}>
-            Clear All
-          </Button>
-          <Button onClick={() => setShowPlatformsDialog(false)}>
-            Done
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
