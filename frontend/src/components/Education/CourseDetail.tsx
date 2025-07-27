@@ -28,13 +28,13 @@ const CourseDetail: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/education/courses/${course_id}`);
+      const res = await fetch(`/api/education/courses/${course_id}`);
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
-        const data = await res.json();
+      const data = await res.json();
         if (data.course) {
-          setCourse(data.course);
+      setCourse(data.course);
         } else {
           // If no course from API, show sample course
           setCourse({
@@ -59,11 +59,11 @@ const CourseDetail: React.FC = () => {
         }
         
         try {
-          const progressRes = await fetch(`/api/education/courses/${course_id}/progress`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          });
-          const progressData = await progressRes.json();
-          setProgress(progressData.progress);
+      const progressRes = await fetch(`/api/education/courses/${course_id}/progress`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const progressData = await progressRes.json();
+      setProgress(progressData.progress);
         } catch (error) {
           // If progress fetch fails, set default progress
           setProgress({ progress: 0, completed: false });
@@ -93,7 +93,7 @@ const CourseDetail: React.FC = () => {
         });
         setProgress({ progress: 0, completed: false });
       } finally {
-        setLoading(false);
+      setLoading(false);
       }
     };
     fetchCourse();

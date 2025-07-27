@@ -142,6 +142,20 @@ const navigationItems: NavigationItem[] = [
     roles: ['admin', 'analyst', 'user'],
   },
   {
+    id: 'metasploit',
+    label: 'Metasploit Framework',
+    icon: <SecurityIcon />,
+    path: '/tools/metasploit',
+    roles: ['admin', 'analyst'],
+  },
+  {
+    id: 'zap',
+    label: 'OWASP ZAP Scanner',
+    icon: <BugReportIcon />,
+    path: '/tools/zap',
+    roles: ['admin', 'analyst'],
+  },
+  {
     id: 'reports',
     label: 'Reports',
     icon: <AssessmentIcon />,

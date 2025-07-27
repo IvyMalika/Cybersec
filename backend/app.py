@@ -60,6 +60,8 @@ from zphisher_service import (
 )
 from flask_socketio import SocketIO, emit
 from sherlock_tool import sherlock_tool
+from metasploit_tool import metasploit_tool
+from zap_tool import zap_tool
 
 # Load environment variables
 load_dotenv()
@@ -3244,6 +3246,220 @@ def sherlock_platforms():
     except Exception as e:
         app.logger.error(f"Sherlock platforms error: {e}")
         return jsonify({"error": "Failed to get platforms"}), 500
+
+# Metasploit Framework API endpoints
+@app.route('/api/tools/metasploit/status', methods=['GET'])
+@jwt_required()
+def metasploit_status():
+    """Check Metasploit Framework installation status"""
+    try:
+        status = metasploit_tool.check_installation()
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error checking Metasploit status: {e}")
+        return jsonify({'error': 'Failed to check Metasploit status'}), 500
+
+@app.route('/api/tools/metasploit/exploits', methods=['GET'])
+@jwt_required()
+def metasploit_exploits():
+    """Get available exploits"""
+    try:
+        exploits = metasploit_tool.get_available_exploits()
+        return jsonify({'exploits': exploits})
+    except Exception as e:
+        app.logger.error(f"Error getting Metasploit exploits: {e}")
+        return jsonify({'error': 'Failed to get exploits'}), 500
+
+@app.route('/api/tools/metasploit/payloads', methods=['GET'])
+@jwt_required()
+def metasploit_payloads():
+    """Get available payloads"""
+    try:
+        payloads = metasploit_tool.get_available_payloads()
+        return jsonify({'payloads': payloads})
+    except Exception as e:
+        app.logger.error(f"Error getting Metasploit payloads: {e}")
+        return jsonify({'error': 'Failed to get payloads'}), 500
+
+@app.route('/api/tools/metasploit/exploit/<exploit_name>/info', methods=['GET'])
+@jwt_required()
+def metasploit_exploit_info(exploit_name):
+    """Get detailed information about a specific exploit"""
+    try:
+        info = metasploit_tool.get_exploit_info(exploit_name)
+        return jsonify(info)
+    except Exception as e:
+        app.logger.error(f"Error getting exploit info: {e}")
+        return jsonify({'error': 'Failed to get exploit information'}), 500
+
+@app.route('/api/tools/metasploit/exploit/start', methods=['POST'])
+@jwt_required()
+def metasploit_start_exploit():
+    """Start a new exploit session"""
+    try:
+        data = request.get_json()
+        target = data.get('target')
+        exploit = data.get('exploit')
+        payload = data.get('payload')
+        options = data.get('options', {})
+        
+        if not all([target, exploit, payload]):
+            return jsonify({'error': 'Missing required parameters: target, exploit, payload'}), 400
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Start the exploit
+        result = metasploit_tool.start_exploit_session(session_id, target, exploit, payload, options)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting Metasploit exploit: {e}")
+        return jsonify({'error': 'Failed to start exploit'}), 500
+
+@app.route('/api/tools/metasploit/session/<session_id>/status', methods=['GET'])
+@jwt_required()
+def metasploit_session_status(session_id):
+    """Get status of an exploit session"""
+    try:
+        status = metasploit_tool.get_session_status(session_id)
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error getting Metasploit session status: {e}")
+        return jsonify({'error': 'Failed to get session status'}), 500
+
+@app.route('/api/tools/metasploit/session/<session_id>/stop', methods=['POST'])
+@jwt_required()
+def metasploit_stop_session(session_id):
+    """Stop an active exploit session"""
+    try:
+        result = metasploit_tool.stop_session(session_id)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error stopping Metasploit session: {e}")
+        return jsonify({'error': 'Failed to stop session'}), 500
+
+@app.route('/api/tools/metasploit/sessions', methods=['GET'])
+@jwt_required()
+def metasploit_sessions():
+    """Get all active and completed sessions"""
+    try:
+        sessions = metasploit_tool.get_all_sessions()
+        return jsonify({'sessions': sessions})
+    except Exception as e:
+        app.logger.error(f"Error getting Metasploit sessions: {e}")
+        return jsonify({'error': 'Failed to get sessions'}), 500
+
+# OWASP ZAP API endpoints
+@app.route('/api/tools/zap/status', methods=['GET'])
+@jwt_required()
+def zap_status():
+    """Check OWASP ZAP installation status"""
+    try:
+        status = zap_tool.check_installation()
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error checking ZAP status: {e}")
+        return jsonify({'error': 'Failed to check ZAP status'}), 500
+
+@app.route('/api/tools/zap/scan-types', methods=['GET'])
+@jwt_required()
+def zap_scan_types():
+    """Get available scan types"""
+    try:
+        scan_types = zap_tool.get_scan_types()
+        return jsonify({'scan_types': scan_types})
+    except Exception as e:
+        app.logger.error(f"Error getting ZAP scan types: {e}")
+        return jsonify({'error': 'Failed to get scan types'}), 500
+
+@app.route('/api/tools/zap/scan/start', methods=['POST'])
+@jwt_required()
+def zap_start_scan():
+    """Start a new ZAP scan"""
+    try:
+        data = request.get_json()
+        target_url = data.get('target_url')
+        scan_type = data.get('scan_type', 'spider')
+        options = data.get('options', {})
+        
+        if not target_url:
+            return jsonify({'error': 'Missing required parameter: target_url'}), 400
+        
+        # Generate session ID
+        session_id = str(uuid.uuid4())
+        
+        # Start the scan
+        result = zap_tool.start_scan(session_id, target_url, scan_type, options)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error starting ZAP scan: {e}")
+        return jsonify({'error': 'Failed to start scan'}), 500
+
+@app.route('/api/tools/zap/session/<session_id>/status', methods=['GET'])
+@jwt_required()
+def zap_session_status(session_id):
+    """Get status of a scan session"""
+    try:
+        status = zap_tool.get_session_status(session_id)
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error getting ZAP session status: {e}")
+        return jsonify({'error': 'Failed to get session status'}), 500
+
+@app.route('/api/tools/zap/session/<session_id>/stop', methods=['POST'])
+@jwt_required()
+def zap_stop_session(session_id):
+    """Stop an active scan session"""
+    try:
+        result = zap_tool.stop_session(session_id)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error stopping ZAP session: {e}")
+        return jsonify({'error': 'Failed to stop session'}), 500
+
+@app.route('/api/tools/zap/sessions', methods=['GET'])
+@jwt_required()
+def zap_sessions():
+    """Get all active and completed sessions"""
+    try:
+        sessions = zap_tool.get_all_sessions()
+        return jsonify({'sessions': sessions})
+    except Exception as e:
+        app.logger.error(f"Error getting ZAP sessions: {e}")
+        return jsonify({'error': 'Failed to get sessions'}), 500
+
+@app.route('/api/tools/zap/session/<session_id>/vulnerabilities', methods=['GET'])
+@jwt_required()
+def zap_vulnerabilities(session_id):
+    """Get vulnerability summary for a session"""
+    try:
+        summary = zap_tool.get_vulnerability_summary(session_id)
+        return jsonify(summary)
+    except Exception as e:
+        app.logger.error(f"Error getting ZAP vulnerabilities: {e}")
+        return jsonify({'error': 'Failed to get vulnerabilities'}), 500
+
+@app.route('/api/tools/zap/session/<session_id>/report', methods=['POST'])
+@jwt_required()
+def zap_generate_report(session_id):
+    """Generate a report for a scan session"""
+    try:
+        data = request.get_json()
+        report_format = data.get('format', 'html')
+        
+        result = zap_tool.generate_report(session_id, report_format)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error generating ZAP report: {e}")
+        return jsonify({'error': 'Failed to generate report'}), 500
 
 if __name__ == '__main__':
     # Setup logging
