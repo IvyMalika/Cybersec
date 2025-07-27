@@ -29,6 +29,7 @@ import DocumentUpload from './components/Education/DocumentUpload';
 import CertificatePreview from './components/Education/CertificatePreview';
 import AdminEducationPanel from './components/Education/Admin/AdminEducationPanel';
 import LandingPage from './components/Landing/LandingPage';
+import SherlockTool from './components/Tools/SherlockTool';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -145,6 +146,7 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="/tools/sherlock" element={<SherlockTool />} />
                 <Route path="/jobs" element={<JobsManager />} />
                 <Route path="/reports" element={<ReportsManager />} />
                 
