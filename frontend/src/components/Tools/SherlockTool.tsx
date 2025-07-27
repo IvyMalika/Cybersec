@@ -49,7 +49,6 @@ import {
   Warning as WarningIcon,
   ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import axios from 'axios';
 
 interface SherlockResult {
   username: string;
@@ -91,6 +90,15 @@ const SherlockTool: React.FC = () => {
     'YouTube', 'Reddit', 'TikTok', 'Snapchat', 'Pinterest'
   ];
 
+  // Helper function to get auth headers
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
+
   useEffect(() => {
     fetchAvailablePlatforms();
     fetchSessions();
@@ -98,8 +106,16 @@ const SherlockTool: React.FC = () => {
 
   const fetchAvailablePlatforms = async () => {
     try {
-      const response = await axios.get('/api/tools/sherlock/platforms');
-      setAvailablePlatforms(response.data.platforms || popularPlatforms);
+      const response = await fetch('/api/tools/sherlock/platforms', {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailablePlatforms(data.platforms || popularPlatforms);
+      } else {
+        console.error('Failed to fetch platforms:', response.status);
+        setAvailablePlatforms(popularPlatforms);
+      }
     } catch (error) {
       console.error('Error fetching platforms:', error);
       setAvailablePlatforms(popularPlatforms);
@@ -108,8 +124,15 @@ const SherlockTool: React.FC = () => {
 
   const fetchSessions = async () => {
     try {
-      const response = await axios.get('/api/tools/sherlock/sessions');
-      setSessions(response.data.sessions || []);
+      const response = await fetch('/api/tools/sherlock/sessions', {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.sessions || []);
+      } else {
+        console.error('Failed to fetch sessions:', response.status);
+      }
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
@@ -125,21 +148,30 @@ const SherlockTool: React.FC = () => {
     setError(null);
 
     try {
-      const response = await axios.post('/api/tools/sherlock/search', {
-        username: username.trim(),
-        platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
-        timeout
+      const response = await fetch('/api/tools/sherlock/search', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          username: username.trim(),
+          platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
+          timeout
+        })
       });
 
-      const session = response.data;
-      setCurrentSession(session);
-      
-      // Start polling for status updates
-      if (session.status === 'started') {
-        pollSessionStatus(session.session_id);
+      if (response.ok) {
+        const session = await response.json();
+        setCurrentSession(session);
+        
+        // Start polling for status updates
+        if (session.status === 'started') {
+          pollSessionStatus(session.session_id);
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to start search');
       }
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to start search');
+      setError(error.message || 'Failed to start search');
     } finally {
       setLoading(false);
     }
@@ -148,14 +180,21 @@ const SherlockTool: React.FC = () => {
   const pollSessionStatus = async (sessionId: string) => {
     const pollInterval = setInterval(async () => {
       try {
-        const response = await axios.get(`/api/tools/sherlock/status/${sessionId}`);
-        const session = response.data;
+        const response = await fetch(`/api/tools/sherlock/status/${sessionId}`, {
+          headers: getAuthHeaders()
+        });
         
-        setCurrentSession(session);
-        
-        if (session.status === 'completed' || session.status === 'error' || session.status === 'timeout') {
+        if (response.ok) {
+          const session = await response.json();
+          setCurrentSession(session);
+          
+          if (session.status === 'completed' || session.status === 'error' || session.status === 'timeout') {
+            clearInterval(pollInterval);
+            fetchSessions(); // Refresh sessions list
+          }
+        } else {
+          console.error('Error polling session status:', response.status);
           clearInterval(pollInterval);
-          fetchSessions(); // Refresh sessions list
         }
       } catch (error) {
         console.error('Error polling session status:', error);
@@ -166,10 +205,18 @@ const SherlockTool: React.FC = () => {
 
   const handleStopSession = async (sessionId: string) => {
     try {
-      await axios.post(`/api/tools/sherlock/stop/${sessionId}`);
-      fetchSessions();
-      if (currentSession?.session_id === sessionId) {
-        setCurrentSession(prev => prev ? { ...prev, status: 'stopped' } : null);
+      const response = await fetch(`/api/tools/sherlock/stop/${sessionId}`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        fetchSessions();
+        if (currentSession?.session_id === sessionId) {
+          setCurrentSession(prev => prev ? { ...prev, status: 'stopped' } : null);
+        }
+      } else {
+        console.error('Error stopping session:', response.status);
       }
     } catch (error) {
       console.error('Error stopping session:', error);
