@@ -1,179 +1,552 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  Box,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Container,
+  Avatar,
+  Chip,
+  alpha,
+} from '@mui/material';
+import {
+  Security as SecurityIcon,
+  Shield as ShieldIcon,
+  School as SchoolIcon,
+  AdminPanelSettings as AdminIcon,
+  TrendingUp as TrendingUpIcon,
+  BugReport as BugReportIcon,
+  NetworkCheck as NetworkIcon,
+  Psychology as PsychologyIcon,
+  PersonSearch as PersonSearchIcon,
+  Lock as LockIcon,
+  Assessment as AssessmentIcon,
+  WorkspacePremium as WorkspacePremiumIcon,
+} from '@mui/icons-material';
+import { colors } from '../../theme/theme';
 
 const features = [
   {
-    title: 'Cybersecurity Education',
-    description: 'Interactive courses, quizzes, and certification to boost your skills.',
-    icon: '🎓',
+    title: 'Advanced Threat Detection',
+    description: 'Real-time monitoring and analysis of security threats with AI-powered detection.',
+    icon: <ShieldIcon />,
+    color: colors.primary.main,
   },
   {
-    title: 'Automated Scanning Tools',
-    description: 'Nmap, Vulnerability, Malware, OSINT, and more — all in one place.',
-    icon: '🛡️',
+    title: 'Network Security Scanning',
+    description: 'Comprehensive network vulnerability assessment with Nmap and custom tools.',
+    icon: <NetworkIcon />,
+    color: colors.accent.blue,
   },
   {
-    title: 'Admin Panel',
-    description: 'Manage users, review documents, and control platform content.',
-    icon: '🛠️',
+    title: 'Social Engineering Tools',
+    description: 'Advanced phishing and social engineering testing capabilities.',
+    icon: <PsychologyIcon />,
+    color: colors.accent.fuchsia,
   },
   {
-    title: 'Real-Time Progress',
-    description: 'Track your learning and job results with instant feedback.',
-    icon: '📈',
+    title: 'OSINT Intelligence',
+    description: 'Open-source intelligence gathering and username enumeration.',
+    icon: <PersonSearchIcon />,
+    color: colors.accent.orange,
+  },
+  {
+    title: 'Vulnerability Assessment',
+    description: 'Automated vulnerability scanning and penetration testing tools.',
+    icon: <BugReportIcon />,
+    color: colors.severity.high,
+  },
+  {
+    title: 'Security Education',
+    description: 'Interactive cybersecurity courses and certification programs.',
+    icon: <SchoolIcon />,
+    color: colors.accent.teal,
   },
 ];
 
 const testimonials = [
   {
-    name: 'Alex (Analyst)',
-    text: 'The education modules and live tools helped me land my first cybersecurity job! Highly recommended.',
-    avatar: '🧑‍💻',
+    name: 'Alex Chen',
+    role: 'Security Analyst',
+    text: 'VertexGuard has transformed our security operations. The real-time threat detection is incredible.',
+    avatar: 'AC',
   },
   {
-    name: 'Morgan (Admin)',
-    text: 'Managing users and reviewing documents is a breeze. The certificate system is a game changer.',
-    avatar: '👩‍💼',
+    name: 'Sarah Johnson',
+    role: 'IT Director',
+    text: 'The comprehensive toolset and intuitive interface make security management effortless.',
+    avatar: 'SJ',
   },
   {
-    name: 'Taylor (Student)',
-    text: 'The quizzes and instant feedback made learning fun and effective. Love the UI!',
-    avatar: '🧑‍🎓',
+    name: 'Michael Rodriguez',
+    role: 'Penetration Tester',
+    text: 'The advanced scanning capabilities and detailed reporting have improved our security posture significantly.',
+    avatar: 'MR',
   },
+];
+
+const stats = [
+  { label: 'Threats Detected', value: '10,000+', color: colors.accent.fuchsia },
+  { label: 'Networks Scanned', value: '500+', color: colors.accent.blue },
+  { label: 'Vulnerabilities Found', value: '2,500+', color: colors.severity.high },
+  { label: 'Users Protected', value: '50,000+', color: colors.accent.teal },
 ];
 
 const LandingPage: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-blue-200 relative overflow-x-hidden">
-      {/* Animated SVG Wave Background */}
-      <div className="absolute inset-0 -z-10">
-        <svg viewBox="0 0 1440 320" className="w-full h-64 md:h-96">
-          <path fill="#2563eb" fillOpacity="0.2" d="M0,160L60,170.7C120,181,240,203,360,197.3C480,192,600,160,720,133.3C840,107,960,85,1080,101.3C1200,117,1320,171,1380,197.3L1440,224L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
-        </svg>
-      </div>
-
-      {/* Navigation Bar */}
-      <nav className="flex justify-between items-center px-6 py-4 bg-white/80 shadow-md sticky top-0 z-20">
-        <div className="flex items-center space-x-4">
-          <span className="text-2xl font-extrabold text-blue-700 tracking-tight">CyberSec Suite</span>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Link to="/" className="hover:text-blue-600 font-medium">Home</Link>
-          <Link to="/education" className="hover:text-blue-600 font-medium">Education</Link>
-          <Link to="/education/documents" className="hover:text-blue-600 font-medium">Documents</Link>
-          {user?.role === 'admin' && (
-            <Link to="/admin/education" className="hover:text-blue-600 font-medium">Admin</Link>
-          )}
-          {isAuthenticated ? (
-            <Link to="/dashboard" className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow hover:bg-blue-700 transition">Go to Dashboard</Link>
-          ) : (
-            <>
-              <Link to="/login" className="px-4 py-2 bg-white text-blue-700 border border-blue-600 rounded-lg font-semibold shadow hover:bg-blue-50 transition">Login</Link>
-              <Link to="/register" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow hover:bg-blue-700 transition">Get Started</Link>
-            </>
-          )}
-        </div>
-      </nav>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: `linear-gradient(135deg, ${colors.background.default} 0%, ${colors.background.elevated} 100%)`,
+      }}
+    >
+      {/* Navigation */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1000,
+          backgroundColor: alpha(colors.background.paper, 0.9),
+          backdropFilter: 'blur(10px)',
+          borderBottom: `1px solid ${colors.border.primary}`,
+        }}
+      >
+        <Container maxWidth="lg">
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              py: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <ShieldIcon sx={{ mr: 2, color: colors.primary.main, fontSize: 32 }} />
+              <Typography variant="h5" sx={{ fontWeight: 700, color: colors.primary.main }}>
+                VertexGuard
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {isAuthenticated ? (
+                <Button
+                  component={Link}
+                  to="/dashboard"
+                  variant="contained"
+                  sx={{
+                    backgroundColor: colors.primary.main,
+                    '&:hover': {
+                      backgroundColor: colors.primary.dark,
+                    },
+                  }}
+                >
+                  Dashboard
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    component={Link}
+                    to="/login"
+                    variant="outlined"
+                    sx={{
+                      borderColor: colors.border.secondary,
+                      color: colors.text.primary,
+                      '&:hover': {
+                        borderColor: colors.primary.main,
+                      },
+                    }}
+                  >
+                    Login
+                  </Button>
+                  <Button
+                    component={Link}
+                    to="/register"
+                    variant="contained"
+                    sx={{
+                      backgroundColor: colors.primary.main,
+                      '&:hover': {
+                        backgroundColor: colors.primary.dark,
+                      },
+                    }}
+                  >
+                    Get Started
+                  </Button>
+                </>
+              )}
+            </Box>
+          </Box>
+        </Container>
+      </Box>
 
       {/* Hero Section */}
-      <header className="flex-1 flex flex-col justify-center items-center text-center py-20 px-4 animate-fade-in">
-        <h1 className="text-4xl md:text-6xl font-extrabold mb-4 text-blue-900 drop-shadow-lg animate-hero-slide">CyberSec Automation Suite</h1>
-        <p className="text-lg md:text-2xl text-blue-700 mb-8 max-w-2xl mx-auto animate-fade-in-delay">Empowering analysts and admins with cutting-edge cybersecurity tools, education, and automation — all in one platform.</p>
-        <div className="flex flex-col md:flex-row gap-4 justify-center animate-fade-in-delay2">
-          {!isAuthenticated && <Link to="/register" className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold shadow hover:bg-blue-700 transition">Get Started</Link>}
-          {!isAuthenticated && <Link to="/login" className="px-8 py-3 bg-white text-blue-700 border border-blue-600 rounded-lg font-semibold shadow hover:bg-blue-50 transition">Login</Link>}
-          {isAuthenticated && <Link to="/dashboard" className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold shadow hover:bg-blue-700 transition">Go to Dashboard</Link>}
-        </div>
-      </header>
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Box sx={{ textAlign: 'center', mb: 8 }}>
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 700,
+              color: colors.text.primary,
+              mb: 3,
+              fontSize: { xs: '2.5rem', md: '3.5rem' },
+            }}
+          >
+            Advanced Cybersecurity
+            <br />
+            <Box component="span" sx={{ color: colors.primary.main }}>
+              Protection Platform
+            </Box>
+          </Typography>
+          
+          <Typography
+            variant="h5"
+            sx={{
+              color: colors.text.secondary,
+              mb: 4,
+              maxWidth: 800,
+              mx: 'auto',
+              lineHeight: 1.6,
+            }}
+          >
+            Comprehensive threat detection, network security scanning, and advanced penetration testing tools
+            all in one powerful platform.
+          </Typography>
+
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {!isAuthenticated && (
+              <Button
+                component={Link}
+                to="/register"
+                variant="contained"
+                size="large"
+                sx={{
+                  backgroundColor: colors.primary.main,
+                  px: 4,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    backgroundColor: colors.primary.dark,
+                  },
+                }}
+              >
+                Start Free Trial
+              </Button>
+            )}
+            <Button
+              component={Link}
+              to={isAuthenticated ? "/dashboard" : "/login"}
+              variant="outlined"
+              size="large"
+              sx={{
+                borderColor: colors.border.secondary,
+                color: colors.text.primary,
+                px: 4,
+                py: 1.5,
+                fontSize: '1.1rem',
+                '&:hover': {
+                  borderColor: colors.primary.main,
+                },
+              }}
+            >
+              {isAuthenticated ? 'Go to Dashboard' : 'Login'}
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Stats Section */}
+        <Grid container spacing={3} sx={{ mb: 8 }}>
+          {stats.map((stat, index) => (
+            <Grid item xs={6} md={3} key={index}>
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  textAlign: 'center',
+                  p: 2,
+                }}
+              >
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 700,
+                    color: stat.color,
+                    mb: 1,
+                  }}
+                >
+                  {stat.value}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: colors.text.secondary,
+                  }}
+                >
+                  {stat.label}
+                </Typography>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
 
       {/* Features Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-10 text-blue-900">Platform Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {features.map((f, i) => (
-              <div key={i} className="bg-blue-50 rounded-xl shadow p-8 flex items-start space-x-4 hover:shadow-lg transition transform hover:-translate-y-1 animate-fade-in" style={{ animationDelay: `${0.2 + i * 0.1}s` }}>
-                <span className="text-4xl animate-bounce-slow">{f.icon}</span>
-                <div>
-                  <h3 className="text-xl font-semibold text-blue-800 mb-1">{f.title}</h3>
-                  <p className="text-blue-700">{f.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Typography
+          variant="h3"
+          sx={{
+            textAlign: 'center',
+            fontWeight: 700,
+            color: colors.text.primary,
+            mb: 6,
+          }}
+        >
+          Powerful Security Tools
+        </Typography>
+
+        <Grid container spacing={4}>
+          {features.map((feature, index) => (
+            <Grid item xs={12} md={6} lg={4} key={index}>
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  height: '100%',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: `0 8px 32px ${alpha(feature.color, 0.2)}`,
+                  },
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 64,
+                      height: 64,
+                      borderRadius: '50%',
+                      backgroundColor: alpha(feature.color, 0.2),
+                      color: feature.color,
+                      mb: 3,
+                    }}
+                  >
+                    {feature.icon}
+                  </Box>
+                  
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 600,
+                      color: colors.text.primary,
+                      mb: 2,
+                    }}
+                  >
+                    {feature.title}
+                  </Typography>
+                  
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: colors.text.secondary,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {feature.description}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
 
       {/* Testimonials Section */}
-      <section className="py-16 bg-gradient-to-r from-blue-100 to-blue-200">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-blue-900 mb-8">What Our Users Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((t, i) => (
-              <div key={i} className="bg-white rounded-xl shadow p-6 flex flex-col items-center animate-fade-in" style={{ animationDelay: `${0.3 + i * 0.1}s` }}>
-                <span className="text-5xl mb-2 animate-bounce-slow">{t.avatar}</span>
-                <p className="text-blue-800 mb-2">“{t.text}”</p>
-                <span className="text-blue-600 font-semibold">{t.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Typography
+          variant="h3"
+          sx={{
+            textAlign: 'center',
+            fontWeight: 700,
+            color: colors.text.primary,
+            mb: 6,
+          }}
+        >
+          Trusted by Security Professionals
+        </Typography>
 
-      {/* How It Works Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-blue-900 mb-8">How It Works</h2>
-          <div className="flex flex-col md:flex-row justify-center items-center gap-8">
-            <div className="flex flex-col items-center">
-              <span className="text-3xl mb-2">📝</span>
-              <span className="font-semibold text-blue-800">Register & Login</span>
-            </div>
-            <span className="text-2xl text-blue-400 hidden md:inline">→</span>
-            <div className="flex flex-col items-center">
-              <span className="text-3xl mb-2">🎓</span>
-              <span className="font-semibold text-blue-800">Learn & Practice</span>
-            </div>
-            <span className="text-2xl text-blue-400 hidden md:inline">→</span>
-            <div className="flex flex-col items-center">
-              <span className="text-3xl mb-2">🚀</span>
-              <span className="font-semibold text-blue-800">Scan & Analyze</span>
-            </div>
-            <span className="text-2xl text-blue-400 hidden md:inline">→</span>
-            <div className="flex flex-col items-center">
-              <span className="text-3xl mb-2">🏆</span>
-              <span className="font-semibold text-blue-800">Get Certified</span>
-            </div>
-          </div>
-        </div>
-      </section>
+        <Grid container spacing={4}>
+          {testimonials.map((testimonial, index) => (
+            <Grid item xs={12} md={4} key={index}>
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  height: '100%',
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: colors.text.primary,
+                      mb: 3,
+                      fontStyle: 'italic',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    "{testimonial.text}"
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        backgroundColor: colors.primary.main,
+                        mr: 2,
+                      }}
+                    >
+                      {testimonial.avatar}
+                    </Avatar>
+                    <Box>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{
+                          fontWeight: 600,
+                          color: colors.text.primary,
+                        }}
+                      >
+                        {testimonial.name}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: colors.text.secondary,
+                        }}
+                      >
+                        {testimonial.role}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
 
-      {/* Call to Action */}
-      <section className="py-12 bg-gradient-to-r from-blue-600 to-blue-400 text-center">
-        <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">Ready to get started?</h2>
-        {!isAuthenticated && <Link to="/register" className="px-8 py-3 bg-white text-blue-700 rounded-lg font-semibold shadow hover:bg-blue-50 transition">Create Your Account</Link>}
-        {isAuthenticated && <Link to="/dashboard" className="px-8 py-3 bg-white text-blue-700 rounded-lg font-semibold shadow hover:bg-blue-50 transition">Go to Dashboard</Link>}
-      </section>
+      {/* CTA Section */}
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Card
+          sx={{
+            backgroundColor: alpha(colors.primary.main, 0.1),
+            border: `1px solid ${colors.primary.main}40`,
+            borderRadius: 3,
+            textAlign: 'center',
+            p: 4,
+          }}
+        >
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 700,
+              color: colors.text.primary,
+              mb: 2,
+            }}
+          >
+            Ready to Secure Your Infrastructure?
+          </Typography>
+          
+          <Typography
+            variant="body1"
+            sx={{
+              color: colors.text.secondary,
+              mb: 4,
+              maxWidth: 600,
+              mx: 'auto',
+            }}
+          >
+            Join thousands of security professionals who trust VertexGuard for their cybersecurity needs.
+          </Typography>
+
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {!isAuthenticated && (
+              <Button
+                component={Link}
+                to="/register"
+                variant="contained"
+                size="large"
+                sx={{
+                  backgroundColor: colors.primary.main,
+                  px: 4,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  '&:hover': {
+                    backgroundColor: colors.primary.dark,
+                  },
+                }}
+              >
+                Start Free Trial
+              </Button>
+            )}
+            <Button
+              component={Link}
+              to={isAuthenticated ? "/dashboard" : "/login"}
+              variant="outlined"
+              size="large"
+              sx={{
+                borderColor: colors.primary.main,
+                color: colors.primary.main,
+                px: 4,
+                py: 1.5,
+                fontSize: '1.1rem',
+                '&:hover': {
+                  backgroundColor: alpha(colors.primary.main, 0.1),
+                },
+              }}
+            >
+              {isAuthenticated ? 'Go to Dashboard' : 'Login'}
+            </Button>
+          </Box>
+        </Card>
+      </Container>
 
       {/* Footer */}
-      <footer className="py-6 bg-blue-900 text-blue-100 text-center text-sm mt-auto">
-        &copy; {new Date().getFullYear()} CyberSec Automation Suite. All rights reserved.
-      </footer>
-
-      {/* Animations (Tailwind custom classes) */}
-      <style>{`
-        .animate-fade-in { animation: fadeIn 1s ease both; }
-        .animate-fade-in-delay { animation: fadeIn 1.5s 0.3s ease both; }
-        .animate-fade-in-delay2 { animation: fadeIn 2s 0.6s ease both; }
-        .animate-hero-slide { animation: heroSlide 1.2s cubic-bezier(.4,2,.6,1) both; }
-        .animate-bounce-slow { animation: bounce 2.5s infinite alternate; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: none; } }
-        @keyframes heroSlide { from { opacity: 0; transform: translateY(-40px);} to { opacity: 1; transform: none; } }
-      `}</style>
-    </div>
+      <Box
+        sx={{
+          backgroundColor: colors.background.paper,
+          borderTop: `1px solid ${colors.border.primary}`,
+          py: 4,
+        }}
+      >
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <ShieldIcon sx={{ mr: 2, color: colors.primary.main, fontSize: 24 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: colors.primary.main }}>
+                VertexGuard
+              </Typography>
+            </Box>
+            <Typography
+              variant="body2"
+              sx={{
+                color: colors.text.secondary,
+              }}
+            >
+              © 2024 VertexGuard. All rights reserved. Security is a process, not a product.
+            </Typography>
+          </Box>
+        </Container>
+      </Box>
+    </Box>
   );
 };
 

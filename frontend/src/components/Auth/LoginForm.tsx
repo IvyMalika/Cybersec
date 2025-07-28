@@ -13,6 +13,7 @@ import {
   IconButton,
   Fade,
   useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Visibility,
@@ -20,6 +21,7 @@ import {
   Person as PersonIcon,
   Lock as LockIcon,
   Security as SecurityIcon,
+  Shield as ShieldIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -94,28 +96,32 @@ const LoginForm: React.FC = () => {
     >
       <Card
         sx={{
-          maxWidth: 400,
+          maxWidth: 450,
           width: '100%',
           backgroundColor: colors.background.paper,
           border: `1px solid ${colors.border.primary}`,
-          boxShadow: `0 8px 32px ${colors.background.default}80`,
-          borderRadius: 2,
+          borderRadius: 3,
+          boxShadow: `0 8px 32px ${alpha(colors.background.default, 0.8)}`,
         }}
       >
         <CardContent sx={{ p: 4 }}>
+          {/* Logo and Title */}
           <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <SecurityIcon
+            <Box
               sx={{
-                fontSize: 48,
-                color: colors.primary.main,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 mb: 2,
               }}
-            />
-            <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-              CyberSec Suite
-            </Typography>
-            <Typography variant="body2" sx={{ color: colors.text.secondary }}>
-              {showMFA ? 'Enter your MFA code' : 'Sign in to your account'}
+            >
+              <ShieldIcon sx={{ mr: 2, color: colors.primary.main, fontSize: 40 }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, color: colors.primary.main }}>
+                VertexGuard
+              </Typography>
+            </Box>
+            <Typography variant="body1" sx={{ color: colors.text.secondary }}>
+              Secure access to your cybersecurity dashboard
             </Typography>
           </Box>
 
@@ -124,142 +130,144 @@ const LoginForm: React.FC = () => {
               severity="error"
               sx={{
                 mb: 3,
-                backgroundColor: colors.severity.critical + '20',
-                color: colors.severity.critical,
+                backgroundColor: alpha(colors.severity.critical, 0.1),
                 border: `1px solid ${colors.severity.critical}40`,
+                color: colors.severity.critical,
               }}
             >
-              {typeof error === 'string'
-                ? error
-                : error?.message
-                  ? error.message
-                  : error?.error
-                    ? error.error
-                    : JSON.stringify(error)}
+              {error}
             </Alert>
           )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
-            <Fade in={!showMFA}>
-              <Box sx={{ display: showMFA ? 'none' : 'block' }}>
-                <Controller
-                  name="username"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      value={field.value ?? ""}
-                      fullWidth
-                      label="Username"
-                      error={!!errors.username}
-                      helperText={errors.username?.message}
-                      sx={{ mb: 2 }}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon sx={{ color: colors.text.secondary }} />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+            <Box sx={{ mb: 3 }}>
+              <Controller
+                name="username"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Username"
+                    placeholder="Enter your username"
+                    fullWidth
+                    error={!!errors.username}
+                    helperText={errors.username?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon sx={{ color: colors.text.secondary }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: colors.background.elevated,
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                )}
+              />
+            </Box>
 
-                <Controller
-                  name="password"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      value={field.value ?? ""}
-                      fullWidth
-                      label="Password"
-                      type={showPassword ? 'text' : 'password'}
-                      error={!!errors.password}
-                      helperText={errors.password?.message}
-                      sx={{ mb: 3 }}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockIcon sx={{ color: colors.text.secondary }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              onClick={handleTogglePassword}
-                              edge="end"
-                            >
-                              {showPassword ? <VisibilityOff /> : <Visibility />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
-              </Box>
-            </Fade>
+            <Box sx={{ mb: 3 }}>
+              <Controller
+                name="password"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    fullWidth
+                    error={!!errors.password}
+                    helperText={errors.password?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon sx={{ color: colors.text.secondary }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={handleTogglePassword}
+                            edge="end"
+                            sx={{ color: colors.text.secondary }}
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: colors.background.elevated,
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                )}
+              />
+            </Box>
 
-            <Fade in={showMFA}>
-              <Box sx={{ display: showMFA ? 'block' : 'none' }}>
-                <Controller
-                  name="mfaCode"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      value={field.value ?? ""}
-                      fullWidth
-                      label="MFA Code"
-                      placeholder="Enter 6-digit code"
-                      error={!!errors.mfaCode}
-                      helperText={errors.mfaCode?.message}
-                      sx={{ mb: 3 }}
-                      inputProps={{
-                        maxLength: 6,
-                        style: { textAlign: 'center', fontSize: '1.2rem' },
-                      }}
-                    />
-                  )}
-                />
-              </Box>
-            </Fade>
+            {showMFA && (
+              <Fade in={showMFA}>
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="mfaCode"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="MFA Code"
+                        placeholder="Enter 6-digit code"
+                        fullWidth
+                        error={!!errors.mfaCode}
+                        helperText={errors.mfaCode?.message}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SecurityIcon sx={{ color: colors.text.secondary }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: colors.background.elevated,
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+              </Fade>
+            )}
 
             <Button
               type="submit"
-              fullWidth
               variant="contained"
-              size="large"
+              fullWidth
               disabled={isLoading}
               sx={{
-                mb: 2,
-                py: 1.5,
                 backgroundColor: colors.primary.main,
                 '&:hover': {
                   backgroundColor: colors.primary.dark,
                 },
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: '1rem',
+                fontWeight: 600,
               }}
             >
               {isLoading ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : showMFA ? (
-                'Verify MFA'
+                <CircularProgress size={24} sx={{ color: colors.text.primary }} />
               ) : (
                 'Sign In'
               )}
             </Button>
-
-            {showMFA && (
-              <Button
-                fullWidth
-                variant="text"
-                onClick={() => setShowMFA(false)}
-                sx={{ mb: 2 }}
-              >
-                Back to Login
-              </Button>
-            )}
           </form>
 
           <Box sx={{ textAlign: 'center', mt: 3 }}>
@@ -270,7 +278,6 @@ const LoginForm: React.FC = () => {
                 sx={{
                   color: colors.primary.main,
                   textDecoration: 'none',
-                  fontWeight: 600,
                   '&:hover': {
                     textDecoration: 'underline',
                   },
@@ -278,6 +285,12 @@ const LoginForm: React.FC = () => {
               >
                 Sign up
               </Link>
+            </Typography>
+          </Box>
+
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+              Security is a process, not a product
             </Typography>
           </Box>
         </CardContent>

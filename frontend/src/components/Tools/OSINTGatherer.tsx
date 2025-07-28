@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -6,6 +6,10 @@ import {
   Typography,
   TextField,
   Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   Alert,
   Chip,
   Table,
@@ -21,6 +25,8 @@ import {
   Divider,
   CircularProgress,
   Fade,
+  alpha,
+  LinearProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -28,24 +34,28 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Tabs,
-  Tab,
-  TabPanel,
-  InputAdornment,
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
   GetApp as DownloadIcon,
-  Search as SearchIcon,
-  Public as PublicIcon,
-  Dns as DnsIcon,
+  Visibility as ViewIcon,
+  PersonSearch as PersonSearchIcon,
   Security as SecurityIcon,
   ExpandMore as ExpandMoreIcon,
+  ErrorOutline as ErrorIcon,
+  Warning as WarningIcon,
   Info as InfoIcon,
-  Language as LanguageIcon,
-  Storage as StorageIcon,
-  NetworkCheck as NetworkIcon,
+  MoreVert as MoreVertIcon,
+  Refresh as RefreshIcon,
+  TrendingUp as TrendingUpIcon,
+  Assessment as AssessmentIcon,
+  Web as WebIcon,
   Email as EmailIcon,
+  Phone as PhoneIcon,
+  LocationOn as LocationIcon,
+  Business as BusinessIcon,
+  Link as LinkIcon,
+  Public as PublicIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -56,933 +66,660 @@ import { colors } from '../../theme/theme';
 import { OSINTRequest, OSINTResponse } from '../../types/api';
 import TerminalOutput from '../Common/TerminalOutput';
 import ScanProgress from '../Common/ScanProgress';
-import { useState as useLocalState } from 'react';
-import { useRef } from 'react';
-import axios from 'axios';
 
 const osintSchema = yup.object({
-  target: yup
-    .string()
-    .matches(
-      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$|^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
-      'Please enter a valid domain name or IP address'
-    )
-    .notRequired(),
-  email: yup
-    .string()
-    .email('Please enter a valid email address')
-    .notRequired(),
-  url: yup
-    .string()
-    .url('Please enter a valid URL (for SQLi test)')
-    .notRequired(),
-}).test(
-  'at-least-one',
-  'Please enter at least a target (domain/IP), email address, or test URL.',
-  (value) => {
-    return !!(value.target || value.email || value.url);
-  }
-);
+  target: yup.string().required('Target is required'),
+  search_type: yup.string().required('Search type is required'),
+  platforms: yup.array().min(1, 'Select at least one platform'),
+});
 
 interface OSINTFormData {
   target: string;
-  email?: string;
-  url?: string;
+  search_type: 'username' | 'email' | 'domain' | 'phone';
+  platforms: string[];
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
+const searchTypes = [
+  {
+    value: 'username',
+    label: 'Username Search',
+    description: 'Find accounts across social platforms',
+    icon: <PersonSearchIcon />,
+    color: colors.primary.main,
+  },
+  {
+    value: 'email',
+    label: 'Email Search',
+    description: 'Find email-related information',
+    icon: <EmailIcon />,
+    color: colors.accent.fuchsia,
+  },
+  {
+    value: 'domain',
+    label: 'Domain Search',
+    description: 'Gather domain intelligence',
+    icon: <WebIcon />,
+    color: colors.accent.blue,
+  },
+  {
+    value: 'phone',
+    label: 'Phone Search',
+    description: 'Find phone-related information',
+    icon: <PhoneIcon />,
+    color: colors.accent.orange,
+  },
+];
 
-function CustomTabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
+const platforms = [
+  { value: 'twitter', label: 'Twitter', icon: <PublicIcon /> },
+  { value: 'github', label: 'GitHub', icon: <BusinessIcon /> },
+  { value: 'linkedin', label: 'LinkedIn', icon: <BusinessIcon /> },
+  { value: 'instagram', label: 'Instagram', icon: <PublicIcon /> },
+  { value: 'facebook', label: 'Facebook', icon: <PublicIcon /> },
+  { value: 'reddit', label: 'Reddit', icon: <PublicIcon /> },
+  { value: 'discord', label: 'Discord', icon: <PublicIcon /> },
+  { value: 'telegram', label: 'Telegram', icon: <PublicIcon /> },
+];
 
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`osint-tabpanel-${index}`}
-      aria-labelledby={`osint-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
+const OSINTStatCard: React.FC<{
+  title: string;
+  value: string | number;
+  color: string;
+  icon: React.ReactNode;
+  subtitle?: string;
+}> = ({ title, value, color, icon, subtitle }) => (
+  <Card
+    sx={{
+      backgroundColor: colors.background.paper,
+      border: `1px solid ${colors.border.primary}`,
+      borderRadius: 2,
+      transition: 'all 0.3s ease-in-out',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 32px ${alpha(color, 0.2)}`,
+      },
+    }}
+  >
+    <CardContent sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color, mb: 0.5 }}>
+            {value}
+          </Typography>
+          <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+            {title}
+          </Typography>
+          {subtitle && (
+            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            backgroundColor: alpha(color, 0.2),
+            color,
+          }}
+        >
+          {icon}
+        </Box>
+      </Box>
+    </CardContent>
+  </Card>
+);
 
 const OSINTGatherer: React.FC = () => {
   const [osintResults, setOsintResults] = useState<OSINTResponse | null>(null);
   const [currentJobId, setCurrentJobId] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
-  // Local state for expanding EmailRep raw JSON
-  const [showEmailRepRaw, setShowEmailRepRaw] = useLocalState(false);
-  // Refs for autofocus
-  const targetRef = useRef<HTMLInputElement>(null);
-  const emailRef = useRef<HTMLInputElement>(null);
-  const [harvesterResults, setHarvesterResults] = useState<{ emails: string[]; hosts: string[] } | null>(null);
-  const [niktoResult, setNiktoResult] = useState<string | null>(null);
-  const [sqlmapResult, setSqlmapResult] = useState<string | null>(null);
-  // Nikto and Harvester error state
-  const [niktoError, setNiktoError] = useState<string | null>(null);
-  const [harvesterError, setHarvesterError] = useState<string | null>(null);
-
-  // Clear/reset handler
-  const handleClear = () => {
-    setOsintResults(null);
-    setCurrentJobId(null);
-    setShowResults(false);
-    control.setValue('target', '');
-    control.setValue('email', '');
-    control.setValue('url', '');
-    setTimeout(() => {
-      if (targetRef.current) targetRef.current.focus();
-    }, 100);
-  };
 
   const {
     control,
     handleSubmit,
     formState: { errors },
+    watch,
   } = useForm<OSINTFormData>({
     resolver: yupResolver(osintSchema),
     defaultValues: {
       target: '',
+      search_type: 'username',
+      platforms: ['twitter', 'github'],
     },
   });
+
+  const selectedSearchType = watch('search_type');
+  const selectedSearchTypeData = searchTypes.find(type => type.value === selectedSearchType);
 
   const osintMutation = useMutation({
-    mutationFn: (data: OSINTRequest) => apiClient.gatherOSINT(data),
-    onSuccess: (data: OSINTResponse) => {
-      setOsintResults(data);
-      setCurrentJobId(data.job_id);
-      setShowResults(true);
+    mutationFn: (data: OSINTRequest) => apiClient.runOSINTSearch(data),
+    onSuccess: (response) => {
+      setCurrentJobId(response.job_id);
+      setOsintResults(response);
     },
     onError: (error) => {
-      console.error('OSINT gathering failed:', error);
+      console.error('OSINT search failed:', error);
     },
   });
 
-  const {
-    data: jobDetails,
-    isLoading: jobLoading,
-    error: jobError,
-  } = useQuery({
+  const { data: jobStatus } = useQuery({
     queryKey: ['job', currentJobId],
-    queryFn: () => apiClient.getJob(currentJobId!),
+    queryFn: () => apiClient.getJobStatus(currentJobId!),
     enabled: !!currentJobId,
     refetchInterval: 2000,
   });
 
-  const onSubmit = async (data: OSINTFormData) => {
-    osintMutation.mutate(data);
-    setHarvesterResults(null);
-    setNiktoResult(null);
-    setSqlmapResult(null);
-    setNiktoError(null);
-    setHarvesterError(null);
-    if (data.target) {
-      try {
-        const res = await axios.post('/api/tools/osint/harvester', { target: data.target });
-        if (res.data.error) {
-          setHarvesterError(res.data.error);
-          setHarvesterResults({ emails: [], hosts: [] });
-        } else {
-          setHarvesterResults(res.data);
-        }
-      } catch (err: any) {
-        setHarvesterError(err?.response?.data?.error || err.message || 'Unknown error');
-        setHarvesterResults({ emails: [], hosts: [] });
-      }
-      try {
-        const niktoRes = await axios.post('/api/tools/osint/nikto', { target: data.target });
-        if (niktoRes.data.error) {
-          setNiktoError(niktoRes.data.error);
-          setNiktoResult('');
-        } else {
-          setNiktoResult(niktoRes.data.output || '');
-        }
-      } catch (err: any) {
-        setNiktoError(err?.response?.data?.error || err.message || 'Unknown error');
-        setNiktoResult('');
-      }
-    }
-    if (data.url) {
-      try {
-        const sqlmapRes = await axios.post('/api/tools/osint/sqlmap', { url: data.url });
-        setSqlmapResult(sqlmapRes.data.output || '');
-      } catch (err) {
-        setSqlmapResult('SQLmap scan failed or is not available.');
-      }
-    }
+  const onSubmit = (data: OSINTFormData) => {
+    osintMutation.mutate({
+      target: data.target,
+      search_type: data.search_type,
+      platforms: data.platforms,
+    });
   };
 
   const handleDownloadReport = async () => {
-    if (!currentJobId) return;
-    
-    try {
-      const reportData = await apiClient.getJobReport(currentJobId);
-      const blob = new Blob([reportData], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `osint_report_${currentJobId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download report:', error);
+    if (osintResults) {
+      try {
+        const response = await apiClient.downloadReport(osintResults.job_id);
+        const blob = new Blob([response], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `osint-search-${osintResults.job_id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Download failed:', error);
+      }
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
+  const getPlatformIcon = (platform: string) => {
+    const platformData = platforms.find(p => p.value === platform);
+    return platformData?.icon || <PublicIcon />;
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
+  const getPlatformColor = (platform: string) => {
+    const colors = {
+      twitter: '#1DA1F2',
+      github: '#333',
+      linkedin: '#0077B5',
+      instagram: '#E4405F',
+      facebook: '#1877F2',
+      reddit: '#FF4500',
+      discord: '#5865F2',
+      telegram: '#0088CC',
+    };
+    return colors[platform as keyof typeof colors] || colors.twitter;
   };
-
-  const renderShodanData = (shodanData: any) => {
-    if (!shodanData || Object.keys(shodanData).length === 0) {
-      return <Alert severity="info">No Shodan data available</Alert>;
-    }
-
-    return (
-      <Box>
-        {shodanData.ports && shodanData.ports.length > 0 && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Open Ports
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {shodanData.ports.map((port: number, index: number) => (
-                <Chip
-                  key={index}
-                  label={port}
-                  size="small"
-                  sx={{
-                    backgroundColor: colors.primary.main + '30',
-                    color: colors.primary.main,
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-        )}
-
-        {shodanData.vulns && Object.keys(shodanData.vulns).length > 0 && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Vulnerabilities
-            </Typography>
-            <List>
-              {Object.keys(shodanData.vulns).map((vuln, index) => (
-                <ListItem key={index} sx={{ pl: 0 }}>
-                  <ListItemIcon>
-                    <SecurityIcon sx={{ color: colors.severity.critical }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={vuln}
-                    secondary={JSON.stringify(shodanData.vulns[vuln])}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        )}
-
-        {shodanData.data && shodanData.data.length > 0 && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Service Data
-            </Typography>
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Port</TableCell>
-                    <TableCell>Service</TableCell>
-                    <TableCell>Product</TableCell>
-                    <TableCell>Version</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shodanData.data.slice(0, 10).map((service: any, index: number) => (
-                    <TableRow key={index}>
-                      <TableCell>{service.port}</TableCell>
-                      <TableCell>{service.transport}</TableCell>
-                      <TableCell>{service.product || 'Unknown'}</TableCell>
-                      <TableCell>{service.version || 'Unknown'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
-  const renderWhoisData = (whoisData: any) => {
-    if (!whoisData || Object.keys(whoisData).length === 0) {
-      return <Alert severity="info">No WHOIS data available</Alert>;
-    }
-
-    return (
-      <TableContainer component={Paper}>
-        <Table>
-          <TableBody>
-            {whoisData.registrar && (
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Registrar</TableCell>
-                <TableCell>{whoisData.registrar}</TableCell>
-              </TableRow>
-            )}
-            {whoisData.creation_date && (
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Creation Date</TableCell>
-                <TableCell>{formatDate(whoisData.creation_date)}</TableCell>
-              </TableRow>
-            )}
-            {whoisData.expiration_date && (
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Expiration Date</TableCell>
-                <TableCell>{formatDate(whoisData.expiration_date)}</TableCell>
-              </TableRow>
-            )}
-            {whoisData.name_servers && (
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Name Servers</TableCell>
-                <TableCell>
-                  {Array.isArray(whoisData.name_servers) ? (
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {whoisData.name_servers.map((ns: string, index: number) => (
-                        <Chip
-                          key={index}
-                          label={ns}
-                          size="small"
-                          sx={{
-                            backgroundColor: colors.severity.info + '30',
-                            color: colors.severity.info,
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  ) : (
-                    whoisData.name_servers
-                  )}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    );
-  };
-
-  const renderDnsData = (dnsData: any) => {
-    if (!dnsData || Object.keys(dnsData).length === 0) {
-      return <Alert severity="info">No DNS data available</Alert>;
-    }
-
-    return (
-      <Box>
-        {Object.keys(dnsData).map((recordType) => (
-          <Accordion key={recordType} sx={{ mb: 1 }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                {recordType} Records ({dnsData[recordType]?.length || 0})
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              {dnsData[recordType] && dnsData[recordType].length > 0 ? (
-                <List dense>
-                  {dnsData[recordType].map((record: string, index: number) => (
-                    <ListItem key={index} sx={{ pl: 0 }}>
-                      <ListItemIcon>
-                        <DnsIcon fontSize="small" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={record}
-                        primaryTypographyProps={{
-                          fontFamily: 'monospace',
-                          fontSize: '0.875rem',
-                        }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No {recordType} records found
-                </Typography>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Box>
-    );
-  };
-
-  // Helper for EmailRep reputation color
-  const getReputationColor = (rep: string) => {
-    switch (rep) {
-      case 'high': return 'success';
-      case 'medium': return 'warning';
-      case 'low':
-      case 'bad': return 'error';
-      default: return 'default';
-    }
-  };
-
-  // Helper for Socialscan status color
-  const getSocialscanColor = (status: string) => {
-    switch (status) {
-      case 'available': return 'success';
-      case 'taken': return 'error';
-      default: return 'default';
-    }
-  };
-
-  // Helper to show which OSINT checks will run
-  const getChecksToRun = (target: string, email: string) => {
-    const checks = [];
-    if (target) checks.push('WHOIS', 'DNS');
-    if (email) checks.push('EmailRep.io', 'Socialscan');
-    return checks;
-  };
-
-  // Update checks preview
-  const osintChecks = [
-    {
-      key: 'whois',
-      label: 'WHOIS',
-      icon: <PublicIcon color="primary" />,
-      desc: 'Domain registration info',
-      field: 'target',
-    },
-    {
-      key: 'dns',
-      label: 'DNS',
-      icon: <DnsIcon color="primary" />,
-      desc: 'DNS records & security',
-      field: 'target',
-    },
-    {
-      key: 'hunterio',
-      label: 'Hunter.io',
-      icon: <EmailIcon color="primary" />,
-      desc: 'Email discovery and verification',
-      field: 'email',
-    },
-    {
-      key: 'nikto',
-      label: 'Nikto',
-      icon: <SecurityIcon color="primary" />,
-      desc: 'Web server vulnerability scan',
-      field: 'target',
-    },
-  ];
-
-  // Step details for OSINT process
-  const osintStepDetails = [
-    {
-      key: 'whois',
-      label: 'WHOIS',
-      desc: 'Fetches domain registration and ownership information.',
-      command: (target: string) => `whois ${target}`,
-      outcome: 'Displays registrar, creation/expiration dates, and name servers.'
-    },
-    {
-      key: 'dns',
-      label: 'DNS',
-      desc: 'Retrieves DNS records and security-related information.',
-      command: (target: string) => `dig +short ANY ${target}`,
-      outcome: 'Lists DNS records such as A, MX, TXT, NS, etc.'
-    },
-    {
-      key: 'hunterio',
-      label: 'Hunter.io',
-      desc: 'Finds and verifies emails related to the domain.',
-      command: (email: string) => `hunter.io API search for ${email}`,
-      outcome: 'Shows discovered emails, types, confidence, and sources.'
-    },
-    {
-      key: 'nikto',
-      label: 'Nikto',
-      desc: 'Scans the web server for vulnerabilities.',
-      command: (target: string) => `nikto -h ${target}`,
-      outcome: 'Reports web server vulnerabilities and misconfigurations.'
-    },
-    {
-      key: 'theharvester',
-      label: 'theHarvester',
-      desc: 'Discovers emails and hosts using public sources.',
-      command: (target: string) => `theHarvester -d ${target} -b all` ,
-      outcome: 'Lists found emails and hosts.'
-    },
-    {
-      key: 'sqlmap',
-      label: 'sqlmap',
-      desc: 'Tests the provided URL for SQL injection vulnerabilities.',
-      command: (url: string) => `sqlmap -u "${url}" --batch`,
-      outcome: 'Shows SQL injection vulnerabilities and extracted data.'
-    }
-  ];
-
-  // Autofocus logic
-  useEffect(() => {
-    if (targetRef.current && !control._formValues?.target) {
-      targetRef.current.focus();
-    } else if (emailRef.current && !control._formValues?.email) {
-      emailRef.current.focus();
-    }
-  }, []);
-
-  // Animated error message
-  const AnimatedError = ({ message }: { message: string }) => (
-    <Fade in={!!message} timeout={400}>
-      <Alert severity="error" sx={{ mb: 2 }}>{message}</Alert>
-    </Fade>
-  );
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', display: 'flex', gap: 4 }}>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Typography variant="h4" sx={{ mb: 2, fontWeight: 700 }}>
-        OSINT Gatherer
-      </Typography>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        You can search by <b>target</b> (domain/IP), <b>email</b>, or both. At least one is required.
-      </Alert>
-      <form onSubmit={handleSubmit(onSubmit)} aria-label="OSINT gather form">
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                  Target (Domain or IP)
+    <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary }}>
+          OSINT Intelligence Gatherer
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh">
+            <IconButton
+              onClick={() => window.location.reload()}
+              sx={{
+                backgroundColor: alpha(colors.primary.main, 0.1),
+                '&:hover': {
+                  backgroundColor: alpha(colors.primary.main, 0.2),
+                },
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      <Grid container spacing={3}>
+        {/* Search Configuration Card */}
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              backgroundColor: colors.background.paper,
+              border: `1px solid ${colors.border.primary}`,
+              borderRadius: 2,
+              height: 'fit-content',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <PersonSearchIcon sx={{ mr: 2, color: colors.accent.fuchsia, fontSize: 28 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                  Search Configuration
                 </Typography>
-                <Controller
-                  name="target"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Domain or IP"
-                      fullWidth
-                      error={!!errors.target}
-                      helperText={errors.target?.message || 'Runs WHOIS and DNS checks.'}
-                      inputRef={targetRef}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Tooltip title="Domain or IP address to scan" arrow>
-                              <PublicIcon />
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      }}
-                      inputProps={{ 'aria-label': 'Domain or IP' }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !field.value && emailRef.current) {
-                          emailRef.current.focus();
-                          e.preventDefault();
-                        } else if (e.key === 'Enter' && field.value && (!control._formValues?.email || control._formValues?.email === '')) {
-                          // If target is filled but email is empty, move to email
-                          if (emailRef.current) emailRef.current.focus();
-                          e.preventDefault();
-                        }
-                      }}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                  Email
-                </Typography>
-                <Controller
-                  name="email"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Email address"
-                      fullWidth
-                      error={!!errors.email}
-                      helperText={errors.email?.message || 'Runs EmailRep.io and Socialscan checks.'}
-                      inputRef={emailRef}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Tooltip title="Email address to check" arrow>
-                              <EmailIcon />
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      }}
-                      inputProps={{ 'aria-label': 'Email address' }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !field.value && targetRef.current) {
-                          targetRef.current.focus();
-                          e.preventDefault();
-                        } else if (e.key === 'Enter' && field.value && (!control._formValues?.target || control._formValues?.target === '')) {
-                          // If email is filled but target is empty, move to target
-                          if (targetRef.current) targetRef.current.focus();
-                          e.preventDefault();
-                        }
-                      }}
-                    />
-                  )}
-                />
-              </Grid>
-                <Grid item xs={12} md={12}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    Test URL (for SQL Injection)
-                  </Typography>
+              </Box>
+
+              <form onSubmit={handleSubmit(onSubmit)}>
+                <Box sx={{ mb: 3 }}>
                   <Controller
-                    name="url"
+                    name="target"
                     control={control}
                     render={({ field }) => (
                       <TextField
                         {...field}
-                        label="Test URL (e.g. http://example.com/page?id=1)"
+                        label="Target"
+                        placeholder="Enter username, email, domain, or phone"
                         fullWidth
-                        error={!!errors.url}
-                        helperText={errors.url?.message || 'Runs sqlmap for SQL injection detection.'}
-                        inputProps={{ 'aria-label': 'Test URL' }}
+                        error={!!errors.target}
+                        helperText={errors.target?.message}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: colors.background.elevated,
+                          },
+                        }}
                       />
                     )}
                   />
-                </Grid>
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-              </Grid>
-              {errors?.root && (
-                <Grid item xs={12}>
-                  <AnimatedError message={errors.root.message} />
-                </Grid>
-              )}
-              <Grid item xs={12}>
-                {/* Show which checks will run based on input */}
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {(() => {
-                      const values = control._formValues || {};
-                      const checks = getChecksToRun(values.target, values.email);
-                      if (checks.length === 0) return null;
-                      return (
-                        <span>
-                          <b>Will run:</b> {checks.join(', ')}
-                        </span>
-                      );
-                    })()}
-                  </Typography>
                 </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="search_type"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Search Type</InputLabel>
+                        <Select {...field} label="Search Type">
+                          {searchTypes.map((type) => (
+                            <MenuItem key={type.value} value={type.value}>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: alpha(type.color, 0.2),
+                                    color: type.color,
+                                    mr: 2,
+                                  }}
+                                >
+                                  {type.icon}
+                                </Box>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {type.label}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                    {type.description}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="platforms"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Platforms</InputLabel>
+                        <Select
+                          {...field}
+                          multiple
+                          label="Platforms"
+                          renderValue={(selected) => (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {selected.map((value) => (
+                                <Chip
+                                  key={value}
+                                  label={platforms.find(p => p.value === value)?.label}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: alpha(getPlatformColor(value), 0.2),
+                                    color: getPlatformColor(value),
+                                  }}
+                                />
+                              ))}
+                            </Box>
+                          )}
+                        >
+                          {platforms.map((platform) => (
+                            <MenuItem key={platform.value} value={platform.value}>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: '50%',
+                                    backgroundColor: alpha(getPlatformColor(platform.value), 0.2),
+                                    color: getPlatformColor(platform.value),
+                                    mr: 2,
+                                  }}
+                                >
+                                  {platform.icon}
+                                </Box>
+                                <Typography variant="body2">{platform.label}</Typography>
+                              </Box>
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Box>
+
                 <Button
                   type="submit"
                   variant="contained"
-                  color="primary"
-                  startIcon={<SearchIcon />}
                   fullWidth
-                  disabled={osintMutation.isLoading}
-                  aria-label="Submit OSINT gather form"
+                  disabled={osintMutation.isPending}
+                  startIcon={osintMutation.isPending ? <CircularProgress size={20} /> : <PlayIcon />}
+                  sx={{
+                    backgroundColor: colors.accent.fuchsia,
+                    '&:hover': {
+                      backgroundColor: colors.accent.fuchsia + 'CC',
+                    },
+                    py: 1.5,
+                  }}
                 >
-                  {osintMutation.isLoading ? 'Gathering...' : 'Gather OSINT'}
+                  {osintMutation.isPending ? 'Starting Search...' : 'Start OSINT Search'}
                 </Button>
-              </Grid>
-              <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                <Button variant="outlined" color="secondary" onClick={handleClear} aria-label="Clear form and results">
-                  Clear
-                </Button>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </form>
+              </form>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        {osintMutation.error && <AnimatedError message={
-          typeof osintMutation.error === 'string'
-            ? osintMutation.error
-            : osintMutation.error?.message
-              ? osintMutation.error.message
-              : osintMutation.error?.error
-                ? osintMutation.error.error
-                : JSON.stringify(osintMutation.error)
-        } />}
-
-      {/* Enhanced Live OSINT Preview Panel */}
-      <Card sx={{ mb: 2, background: '#f8fafc' }} elevation={0} aria-label="OSINT checks preview">
-        <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-            <InfoIcon fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-            OSINT Checks Preview
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            {osintChecks.map((check) => {
-              const values = control._formValues || {};
-              const active = !!values[check.field];
-              return (
-                <Tooltip key={check.key} title={<span><b>{check.label}</b><br />{check.desc}</span>} arrow>
-                  <Box
-                    sx={{
-                      opacity: active ? 1 : 0.3,
-                      border: active ? '2px solid #1976d2' : '2px dashed #bdbdbd',
-                      borderRadius: 2,
-                      px: 2,
-                      py: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
-                      background: active ? '#e3f2fd' : 'transparent',
-                      boxShadow: active ? '0 2px 8px #1976d220' : 'none',
-                    }}
-                    aria-label={check.label}
-                    tabIndex={0}
-                    role="button"
-                  >
-                    {check.icon}
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{check.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">{check.desc}</Typography>
-                    </Box>
-                  </Box>
-                </Tooltip>
-              );
-            })}
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Collapsible Results: Only show relevant sections, hide empty ones */}
-      {showResults && osintResults && (
-        <Fade in={showResults}>
-          <Card aria-label="OSINT results">
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  OSINT Gathering Results
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Tooltip title="Download Report">
-                    <IconButton onClick={handleDownloadReport} aria-label="Download OSINT report">
-                      <DownloadIcon />
-                    </IconButton>
-                  </Tooltip>
+        {/* Search Progress and Results */}
+        <Grid item xs={12} md={8}>
+          {currentJobId && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mb: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                    Search Progress
+                  </Typography>
+                  <IconButton size="small">
+                    <MoreVertIcon sx={{ color: colors.text.secondary }} />
+                  </IconButton>
                 </Box>
-              </Box>
-              <Alert
-                severity="success"
-                sx={{
-                  mb: 2,
-                  backgroundColor: colors.severity.low + '20',
-                  color: colors.severity.low,
-                  border: `1px solid ${colors.severity.low}40`,
-                }}
-                role="status"
-              >
-                OSINT gathering completed successfully!
-              </Alert>
-              {/* Collapsible/conditional sections with contextual tooltips */}
-              {osintResults.osint_data?.whois && Object.keys(osintResults.osint_data.whois).length > 0 && (
-                <Accordion defaultExpanded aria-label="WHOIS results">
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="whois-content" id="whois-header">
-                    <Tooltip title="Domain registration and ownership info" arrow>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>WHOIS</Typography>
-                    </Tooltip>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    {renderWhoisData(osintResults.osint_data.whois)}
-                  </AccordionDetails>
-                </Accordion>
-              )}
-              {osintResults.osint_data?.dns && Object.keys(osintResults.osint_data.dns).length > 0 && (
-                <Accordion defaultExpanded aria-label="DNS results">
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="dns-content" id="dns-header">
-                    <Tooltip title="DNS records and security checks" arrow>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>DNS</Typography>
-                    </Tooltip>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    {renderDnsData(osintResults.osint_data.dns)}
-                  </AccordionDetails>
-                </Accordion>
-              )}
-                {osintResults.osint_data?.hunterio && (
-                  <Accordion defaultExpanded aria-label="Hunter.io results">
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="hunterio-content" id="hunterio-header">
-                      <Tooltip title="Hunter.io email discovery and verification" arrow>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Hunter.io</Typography>
-                    </Tooltip>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                      {/* Render Hunter.io results */}
-                      {Array.isArray(osintResults.osint_data.hunterio.emails) && osintResults.osint_data.hunterio.emails.length > 0 ? (
-                        <TableContainer component={Paper} sx={{ mb: 2, borderRadius: 2, boxShadow: 2 }}>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Email</TableCell>
-                                <TableCell>Type</TableCell>
-                                <TableCell>Confidence</TableCell>
-                                <TableCell>Source</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {osintResults.osint_data.hunterio.emails.map((email: any, idx: number) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{email.value}</TableCell>
-                                  <TableCell>{email.type}</TableCell>
-                                  <TableCell>{email.confidence}</TableCell>
-                                  <TableCell>{email.sources?.map((s: any) => s.domain).join(', ')}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                    ) : (
-                        <Alert severity="info">No emails found by Hunter.io.</Alert>
-                    )}
-                  </AccordionDetails>
-                </Accordion>
-              )}
-                {niktoResult && (
-                  <Accordion defaultExpanded aria-label="Nikto results">
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="nikto-content" id="nikto-header">
-                      <Tooltip title="Nikto web server vulnerability scan" arrow>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Nikto</Typography>
-                      </Tooltip>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {niktoError ? (
-                        <Alert severity="error" sx={{ mb: 2 }}>{niktoError}</Alert>
-                      ) : niktoResult ? (
-                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 4, border: '1px solid #eee' }}>{niktoResult}</pre>
-                      ) : (
-                        <Alert severity="info">Nikto did not return any results.</Alert>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
+                
+                <ScanProgress jobId={currentJobId} />
+                
+                {jobStatus?.status === 'completed' && (
+                  <Box sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={handleDownloadReport}
+                      sx={{
+                        borderColor: colors.border.secondary,
+                        color: colors.text.primary,
+                        '&:hover': {
+                          borderColor: colors.primary.main,
+                        },
+                      }}
+                    >
+                      Download Report
+                    </Button>
+                  </Box>
                 )}
-                {harvesterResults && (
-                  <Accordion defaultExpanded aria-label="theHarvester results">
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="theharvester-content" id="theharvester-header">
-                      <Tooltip title="theHarvester email and host discovery" arrow>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>theHarvester</Typography>
-                      </Tooltip>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {harvesterError ? (
-                        <Alert severity="error" sx={{ mb: 2 }}>{harvesterError}</Alert>
-                      ) : Array.isArray(harvesterResults.emails) && harvesterResults.emails.length > 0 ? (
-                        <List>
-                          {harvesterResults.emails.map((email: string, idx: number) => (
-                            <ListItem key={idx}>
-                              <ListItemIcon>
-                                <EmailIcon color="primary" />
-                              </ListItemIcon>
-                              <ListItemText primary={email} />
-                            </ListItem>
-                          ))}
-                        </List>
-                      ) : (
-                        <Alert severity="info">No emails found by theHarvester.</Alert>
-                      )}
-                      {Array.isArray(harvesterResults.hosts) && harvesterResults.hosts.length > 0 && (
-                        <>
-                          <Divider sx={{ my: 2 }} />
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Hosts</Typography>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Search Results */}
+          {osintResults && jobStatus?.status === 'completed' && (
+            <>
+              {/* Search Statistics */}
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  mb: 3,
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                      Search Statistics
+                    </Typography>
+                    <IconButton size="small">
+                      <MoreVertIcon sx={{ color: colors.text.secondary }} />
+                    </IconButton>
+                  </Box>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <OSINTStatCard
+                        title="Platforms Searched"
+                        value={osintResults.platforms_searched || 0}
+                        color={colors.accent.blue}
+                        icon={<WebIcon />}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <OSINTStatCard
+                        title="Accounts Found"
+                        value={osintResults.accounts_found || 0}
+                        color={colors.primary.main}
+                        icon={<PersonSearchIcon />}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <OSINTStatCard
+                        title="Emails Found"
+                        value={osintResults.emails_found || 0}
+                        color={colors.accent.fuchsia}
+                        icon={<EmailIcon />}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <OSINTStatCard
+                        title="Domains Found"
+                        value={osintResults.domains_found || 0}
+                        color={colors.accent.orange}
+                        icon={<WebIcon />}
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* Platform Results */}
+              {osintResults.platform_results && (
+                <Card
+                  sx={{
+                    backgroundColor: colors.background.paper,
+                    border: `1px solid ${colors.border.primary}`,
+                    borderRadius: 2,
+                    mb: 3,
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: colors.text.primary }}>
+                      Platform Results
+                    </Typography>
+
+                    {Object.entries(osintResults.platform_results).map(([platform, results]: [string, any]) => (
+                      <Accordion
+                        key={platform}
+                        sx={{
+                          backgroundColor: colors.background.elevated,
+                          mb: 1,
+                          '&:before': { display: 'none' },
+                        }}
+                      >
+                        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: colors.text.secondary }} />}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 32,
+                                height: 32,
+                                borderRadius: '50%',
+                                backgroundColor: alpha(getPlatformColor(platform), 0.2),
+                                color: getPlatformColor(platform),
+                                mr: 2,
+                              }}
+                            >
+                              {getPlatformIcon(platform)}
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontWeight: 600, color: colors.text.primary }}>
+                                {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                {results.length} results found
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
                           <List>
-                            {harvesterResults.hosts.map((host: string, idx: number) => (
-                              <ListItem key={idx}>
+                            {results.map((result: any, index: number) => (
+                              <ListItem key={index} sx={{ py: 0.5 }}>
                                 <ListItemIcon>
-                                  <DnsIcon color="primary" />
+                                  <LinkIcon sx={{ color: colors.accent.blue, fontSize: 16 }} />
                                 </ListItemIcon>
-                                <ListItemText primary={host} />
+                                <ListItemText
+                                  primary={result.username || result.email || result.url}
+                                  secondary={result.bio || result.description}
+                                  primaryTypographyProps={{
+                                    variant: 'body2',
+                                    color: colors.text.primary,
+                                  }}
+                                  secondaryTypographyProps={{
+                                    variant: 'caption',
+                                    color: colors.text.secondary,
+                                  }}
+                                />
+                                {result.url && (
+                                  <IconButton
+                                    size="small"
+                                    href={result.url}
+                                    target="_blank"
+                                    sx={{ color: colors.accent.blue }}
+                                  >
+                                    <ViewIcon />
+                                  </IconButton>
+                                )}
                               </ListItem>
                             ))}
                           </List>
-                        </>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-                )}
-                {sqlmapResult && (
-                  <Accordion defaultExpanded aria-label="sqlmap results">
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="sqlmap-content" id="sqlmap-header">
-                      <Tooltip title="sqlmap SQL injection scan" arrow>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>sqlmap</Typography>
-                      </Tooltip>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 4, border: '1px solid #eee' }}>{sqlmapResult}</pre>
-                    </AccordionDetails>
-                  </Accordion>
-                )}
-            </CardContent>
-          </Card>
-        </Fade>
-      )}
+                        </AccordionDetails>
+                      </Accordion>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
-      {jobDetails && (
-        <Card sx={{ mt: 2 }}>
-          <CardContent>
-            <TerminalOutput
-              jobId={currentJobId}
-              results={jobDetails.results}
-              title="OSINT Gathering Output"
-            />
-          </CardContent>
-        </Card>
-      )}
-      </Box>
-      {/* Process Details Panel */}
-      <Box sx={{ width: 320, minWidth: 220, background: '#181c24', borderRadius: 2, p: 2, boxShadow: 2, height: 'fit-content', position: 'sticky', top: 32 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, color: '#fff' }}>
-          Process Details
-        </Typography>
-        {osintStepDetails.map(step => {
-          // Determine if this step is active based on input
-          let isActive = false;
-          const values = control._formValues || {};
-          if (step.key === 'whois' || step.key === 'dns' || step.key === 'nikto' || step.key === 'theharvester') {
-            isActive = !!values.target;
-          } else if (step.key === 'hunterio') {
-            isActive = !!values.email;
-          } else if (step.key === 'sqlmap') {
-            isActive = !!values.url;
-          }
-          return (
-            <Box key={step.key} sx={{ mb: 2, opacity: isActive ? 1 : 0.5 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{step.label}</Typography>
-              <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>{step.desc}</Typography>
-              <Typography variant="caption" sx={{ display: 'block', color: '#90caf9', mb: 0.5 }}>
-                <b>Command/API:</b> <code>{
-                  step.key === 'whois' || step.key === 'dns' || step.key === 'nikto' || step.key === 'theharvester'
-                    ? step.command(values.target || '[target]')
-                    : step.key === 'hunterio'
-                      ? step.command(values.email || '[email]')
-                      : step.key === 'sqlmap'
-                        ? step.command(values.url || '[url]')
-                        : ''
-                }</code>
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', color: '#a5d6a7' }}>{step.outcome}</Typography>
-            </Box>
-          );
-        })}
-      </Box>
+              {/* Email Intelligence */}
+              {osintResults.email_intelligence && (
+                <Card
+                  sx={{
+                    backgroundColor: colors.background.paper,
+                    border: `1px solid ${colors.border.primary}`,
+                    borderRadius: 2,
+                    mb: 3,
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: colors.text.primary }}>
+                      Email Intelligence
+                    </Typography>
+
+                    <TableContainer component={Paper} sx={{ backgroundColor: colors.background.elevated }}>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Email</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Domain</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Breach Status</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Risk Level</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {osintResults.email_intelligence.map((email: any, index: number) => (
+                            <TableRow key={index}>
+                              <TableCell sx={{ color: colors.text.primary }}>{email.email}</TableCell>
+                              <TableCell sx={{ color: colors.text.primary }}>{email.domain}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={email.breached ? 'Breached' : 'Safe'}
+                                  size="small"
+                                  color={email.breached ? 'error' : 'success'}
+                                  sx={{
+                                    backgroundColor: email.breached ? colors.severity.critical : colors.severity.low,
+                                    color: colors.text.primary,
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={email.risk_level}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: getPlatformColor(email.risk_level),
+                                    color: colors.text.primary,
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Terminal Output */}
+          {currentJobId && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mt: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                  Terminal Output
+                </Typography>
+                <TerminalOutput jobId={currentJobId} />
+              </CardContent>
+            </Card>
+          )}
+        </Grid>
+      </Grid>
     </Box>
   );
 };
