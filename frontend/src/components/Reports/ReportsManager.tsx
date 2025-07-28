@@ -5,6 +5,11 @@ import {
   CardContent,
   Typography,
   Button,
+  Grid,
+  Chip,
+  IconButton,
+  Tooltip,
+  alpha,
   Table,
   TableBody,
   TableCell,
@@ -12,10 +17,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  IconButton,
-  Tooltip,
-  Grid,
-  Chip,
   TextField,
   InputAdornment,
   Select,
@@ -26,109 +27,79 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert,
-  LinearProgress,
-  Fade,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 import {
+  Assessment as AssessmentIcon,
   GetApp as DownloadIcon,
   Visibility as ViewIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Assessment as ReportIcon,
-  PictureAsPdf as PdfIcon,
-  Description as DocIcon,
-  TableChart as CsvIcon,
+  MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
+  TrendingUp as TrendingUpIcon,
+  BugReport as BugReportIcon,
+  Security as SecurityIcon,
+  NetworkCheck as NetworkIcon,
+  Memory as MemoryIcon,
+  PersonSearch as PersonSearchIcon,
+  Lock as LockIcon,
+  Psychology as PsychologyIcon,
+  Gavel as GavelIcon,
+  School as SchoolIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../utils/api';
 import { colors } from '../../theme/theme';
-import { Job } from '../../types/api';
+import { Report } from '../../types/api';
 
-interface ReportPreview {
-  job_id: number;
-  title: string;
-  tool_name: string;
-  target: string;
+interface ReportFilters {
+  type: string;
   status: string;
-  created_at: string;
-  completed_at: string;
-  vulnerabilities_count: number;
-  severity_breakdown: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-  };
+  dateRange: string;
+  search: string;
 }
 
-const ReportsManager: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [toolFilter, setToolFilter] = useState('all');
-  const [selectedReport, setSelectedReport] = useState<ReportPreview | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+const reportTypes = [
+  { value: 'vulnerability', label: 'Vulnerability Scan', icon: <BugReportIcon />, color: colors.severity.high },
+  { value: 'network', label: 'Network Scan', icon: <NetworkIcon />, color: colors.accent.blue },
+  { value: 'malware', label: 'Malware Analysis', icon: <MemoryIcon />, color: colors.accent.orange },
+  { value: 'osint', label: 'OSINT Search', icon: <PersonSearchIcon />, color: colors.accent.fuchsia },
+  { value: 'password', label: 'Password Crack', icon: <LockIcon />, color: colors.accent.teal },
+  { value: 'social', label: 'Social Engineering', icon: <PsychologyIcon />, color: colors.primary.main },
+  { value: 'mass-report', label: 'Mass Report', icon: <GavelIcon />, color: colors.accent.orange },
+  { value: 'education', label: 'Education', icon: <SchoolIcon />, color: colors.accent.teal },
+];
+
+const statusOptions = [
+  { value: 'all', label: 'All Status' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'running', label: 'Running' },
+  { value: 'failed', label: 'Failed' },
+];
+
+const dateRanges = [
+  { value: 'all', label: 'All Time' },
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+  { value: 'year', label: 'This Year' },
+];
+
+const ReportCard: React.FC<{ report: Report }> = ({ report }) => {
   const queryClient = useQueryClient();
+  const reportType = reportTypes.find(type => type.value === report.type);
 
-  const {
-    data: jobs,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['jobs'],
-    queryFn: () => apiClient.getJobs(),
-  });
-
-  const downloadMutation = useMutation({
-    mutationFn: (jobId: number) => apiClient.getJobReport(jobId),
-    onSuccess: (data, jobId) => {
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `report_${jobId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    },
-    onError: (error) => {
-      console.error('Failed to download report:', error);
+  const deleteMutation = useMutation({
+    mutationFn: () => apiClient.deleteReport(report.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['reports']);
     },
   });
-
-  const handleDownloadReport = (jobId: number) => {
-    downloadMutation.mutate(jobId);
-  };
-
-  const handleViewReport = (job: Job) => {
-    const reportPreview: ReportPreview = {
-      job_id: job.job_id,
-      title: `${job.tool_name} - ${job.target_value}`,
-      tool_name: job.tool_name || 'Unknown Tool',
-      target: job.target_value || 'Unknown Target',
-      status: job.status,
-      created_at: job.created_at,
-      completed_at: job.completed_at || '',
-      vulnerabilities_count: 0, // This would come from the API
-      severity_breakdown: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-      },
-    };
-    setSelectedReport(reportPreview);
-    setPreviewOpen(true);
-  };
-
-  const handleClosePreview = () => {
-    setPreviewOpen(false);
-    setSelectedReport(null);
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -138,412 +109,401 @@ const ReportsManager: React.FC = () => {
         return colors.primary.main;
       case 'failed':
         return colors.severity.critical;
-      case 'pending':
-        return colors.severity.medium;
       default:
         return colors.text.secondary;
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '✓';
-      case 'running':
-        return '⟳';
-      case 'failed':
-        return '✗';
-      case 'pending':
-        return '⏳';
-      default:
-        return '?';
+  const handleDownload = async () => {
+    try {
+      const response = await apiClient.downloadReport(report.id);
+      const blob = new Blob([response], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-${report.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download failed:', error);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
+  return (
+    <Card
+      sx={{
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+        height: '100%',
+        transition: 'all 0.3s ease-in-out',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: `0 8px 32px ${alpha(reportType?.color || colors.primary.main, 0.2)}`,
+        },
+      }}
+    >
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                backgroundColor: alpha(reportType?.color || colors.primary.main, 0.2),
+                color: reportType?.color || colors.primary.main,
+                mr: 2,
+              }}
+            >
+              {reportType?.icon}
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                {report.title}
+              </Typography>
+              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                {reportType?.label}
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton size="small">
+            <MoreVertIcon sx={{ color: colors.text.secondary }} />
+          </IconButton>
+        </Box>
 
-  const filteredJobs = jobs?.data?.filter((job: Job) => {
-    const matchesSearch = job.tool_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.target_value?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
-    const matchesTool = toolFilter === 'all' || job.tool_name === toolFilter;
-    
-    return matchesSearch && matchesStatus && matchesTool;
+        <Typography variant="body2" sx={{ color: colors.text.secondary, mb: 2, lineHeight: 1.6 }}>
+          {report.description}
+        </Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Chip
+            label={report.status}
+            size="small"
+            sx={{
+              backgroundColor: getStatusColor(report.status),
+              color: colors.text.primary,
+              fontWeight: 600,
+            }}
+          />
+          <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+            {new Date(report.created_at).toLocaleDateString()}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<ViewIcon />}
+            sx={{
+              borderColor: colors.border.secondary,
+              color: colors.text.primary,
+              '&:hover': {
+                borderColor: colors.primary.main,
+              },
+            }}
+          >
+            View
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon />}
+            onClick={handleDownload}
+            sx={{
+              borderColor: colors.border.secondary,
+              color: colors.text.primary,
+              '&:hover': {
+                borderColor: colors.primary.main,
+              },
+            }}
+          >
+            Download
+          </Button>
+          <IconButton
+            size="small"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+            sx={{
+              color: colors.severity.critical,
+              '&:hover': {
+                backgroundColor: alpha(colors.severity.critical, 0.1),
+              },
+            }}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
+
+const ReportsManager: React.FC = () => {
+  const [filters, setFilters] = useState<ReportFilters>({
+    type: 'all',
+    status: 'all',
+    dateRange: 'all',
+    search: '',
+  });
+
+  const {
+    data: reports,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['reports'],
+    queryFn: () => apiClient.getReports(),
+  });
+
+  const filteredReports = reports?.filter(report => {
+    if (filters.type !== 'all' && report.type !== filters.type) return false;
+    if (filters.status !== 'all' && report.status !== filters.status) return false;
+    if (filters.search && !report.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    return true;
   }) || [];
 
-  const uniqueTools = [...new Set(jobs?.data?.map((job: Job) => job.tool_name).filter(Boolean))] || [];
+  const getReportStats = () => {
+    if (!reports) return { total: 0, completed: 0, running: 0, failed: 0 };
+    
+    return reports.reduce((acc, report) => {
+      acc.total++;
+      acc[report.status as keyof typeof acc]++;
+      return acc;
+    }, { total: 0, completed: 0, running: 0, failed: 0 });
+  };
+
+  const stats = getReportStats();
+
+  const StatCard: React.FC<{
+    title: string;
+    value: number;
+    icon: React.ReactNode;
+    color: string;
+  }> = ({ title, value, icon, color }) => (
+    <Card
+      sx={{
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+        transition: 'all 0.3s ease-in-out',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: `0 8px 32px ${alpha(color, 0.2)}`,
+        },
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, color, mb: 0.5 }}>
+              {value}
+            </Typography>
+            <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+              {title}
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              backgroundColor: alpha(color, 0.2),
+              color,
+            }}
+          >
+            {icon}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
-        Reports Manager
-      </Typography>
+    <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary }}>
+          Reports Manager
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh">
+            <IconButton
+              onClick={() => window.location.reload()}
+              sx={{
+                backgroundColor: alpha(colors.primary.main, 0.1),
+                '&:hover': {
+                  backgroundColor: alpha(colors.primary.main, 0.2),
+                },
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
 
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      {/* Report Statistics */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: colors.primary.main + '20' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ color: colors.primary.main, fontWeight: 600 }}>
-                {filteredJobs.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Reports
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="Total Reports"
+            value={stats.total}
+            icon={<AssessmentIcon />}
+            color={colors.primary.main}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: colors.severity.low + '20' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ color: colors.severity.low, fontWeight: 600 }}>
-                {filteredJobs.filter((job: Job) => job.status === 'completed').length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Completed
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="Completed"
+            value={stats.completed}
+            icon={<TrendingUpIcon />}
+            color={colors.severity.low}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: colors.severity.high + '20' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ color: colors.severity.high, fontWeight: 600 }}>
-                {filteredJobs.filter((job: Job) => job.status === 'running').length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Running
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="Running"
+            value={stats.running}
+            icon={<SecurityIcon />}
+            color={colors.primary.main}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: colors.severity.critical + '20' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ color: colors.severity.critical, fontWeight: 600 }}>
-                {filteredJobs.filter((job: Job) => job.status === 'failed').length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Failed
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatCard
+            title="Failed"
+            value={stats.failed}
+            icon={<BugReportIcon />}
+            color={colors.severity.critical}
+          />
         </Grid>
       </Grid>
 
-      <Card>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Available Reports
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Refresh">
-                <IconButton onClick={() => refetch()}>
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
+      {/* Filters */}
+      <Card
+        sx={{
+          backgroundColor: colors.background.paper,
+          border: `1px solid ${colors.border.primary}`,
+          borderRadius: 2,
+          mb: 4,
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: colors.text.primary }}>
+            Filters
+          </Typography>
 
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={4}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
               <TextField
-                fullWidth
-                size="small"
                 placeholder="Search reports..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                fullWidth
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon />
+                      <SearchIcon sx={{ color: colors.text.secondary }} />
                     </InputAdornment>
                   ),
                 }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: colors.background.elevated,
+                  },
+                }}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Status</InputLabel>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Report Type</InputLabel>
                 <Select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  label="Status"
+                  value={filters.type}
+                  onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                  label="Report Type"
                 >
-                  <MenuItem value="all">All Status</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                  <MenuItem value="running">Running</MenuItem>
-                  <MenuItem value="failed">Failed</MenuItem>
-                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="all">All Types</MenuItem>
+                  {reportTypes.map((type) => (
+                    <MenuItem key={type.value} value={type.value}>
+                      {type.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Tool</InputLabel>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
                 <Select
-                  value={toolFilter}
-                  onChange={(e) => setToolFilter(e.target.value)}
-                  label="Tool"
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  label="Status"
                 >
-                  <MenuItem value="all">All Tools</MenuItem>
-                  {uniqueTools.map((tool) => (
-                    <MenuItem key={tool} value={tool}>
-                      {tool}
+                  {statusOptions.map((status) => (
+                    <MenuItem key={status.value} value={status.value}>
+                      {status.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Date Range</InputLabel>
+                <Select
+                  value={filters.dateRange}
+                  onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+                  label="Date Range"
+                >
+                  {dateRanges.map((range) => (
+                    <MenuItem key={range.value} value={range.value}>
+                      {range.label}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
           </Grid>
-
-          {isLoading && <LinearProgress sx={{ mb: 2 }} />}
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load reports: {error.message}
-            </Alert>
-          )}
-
-          <TableContainer component={Paper} sx={{ backgroundColor: colors.background.paper }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Report</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Tool</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Target</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Completed</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredJobs.map((job: Job) => (
-                  <TableRow key={job.job_id} hover>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <ReportIcon />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          Report #{job.job_id}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={job.tool_name || 'Unknown'}
-                        size="small"
-                        sx={{
-                          backgroundColor: colors.primary.main + '30',
-                          color: colors.primary.main,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                      {job.target_value || 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={`${getStatusIcon(job.status)} ${job.status.toUpperCase()}`}
-                        size="small"
-                        sx={{
-                          backgroundColor: getStatusColor(job.status) + '30',
-                          color: getStatusColor(job.status),
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>
-                      {formatDate(job.created_at)}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>
-                      {job.completed_at ? formatDate(job.completed_at) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="View Report">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewReport(job)}
-                          >
-                            <ViewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        {job.status === 'completed' && (
-                          <Tooltip title="Download PDF">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDownloadReport(job.job_id)}
-                              disabled={downloadMutation.isPending}
-                            >
-                              {downloadMutation.isPending ? (
-                                <RefreshIcon fontSize="small" sx={{ animation: 'spin 1s linear infinite' }} />
-                              ) : (
-                                <DownloadIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {filteredJobs.length === 0 && !isLoading && (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary">
-                No reports found matching your criteria.
-              </Typography>
-            </Box>
-          )}
         </CardContent>
       </Card>
 
-      {/* Report Preview Dialog */}
-      <Dialog
-        open={previewOpen}
-        onClose={handleClosePreview}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
+      {/* Reports Grid */}
+      <Grid container spacing={3}>
+        {filteredReports.map((report) => (
+          <Grid item xs={12} sm={6} md={4} key={report.id}>
+            <ReportCard report={report} />
+          </Grid>
+        ))}
+      </Grid>
+
+      {filteredReports.length === 0 && (
+        <Card
+          sx={{
             backgroundColor: colors.background.paper,
             border: `1px solid ${colors.border.primary}`,
-          },
-        }}
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ReportIcon />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Report Preview
+            borderRadius: 2,
+            mt: 3,
+          }}
+        >
+          <CardContent sx={{ p: 4, textAlign: 'center' }}>
+            <AssessmentIcon sx={{ fontSize: 64, color: colors.text.secondary, mb: 2 }} />
+            <Typography variant="h6" sx={{ color: colors.text.secondary, mb: 1 }}>
+              No Reports Found
             </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {selectedReport && (
-            <Box>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Report Title
-                  </Typography>
-                  <Typography variant="body2">{selectedReport.title}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Tool Used
-                  </Typography>
-                  <Chip
-                    label={selectedReport.tool_name}
-                    size="small"
-                    sx={{
-                      backgroundColor: colors.primary.main + '30',
-                      color: colors.primary.main,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Target
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {selectedReport.target}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Status
-                  </Typography>
-                  <Chip
-                    label={selectedReport.status.toUpperCase()}
-                    size="small"
-                    sx={{
-                      backgroundColor: getStatusColor(selectedReport.status) + '30',
-                      color: getStatusColor(selectedReport.status),
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Created
-                  </Typography>
-                  <Typography variant="body2">
-                    {formatDate(selectedReport.created_at)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    Completed
-                  </Typography>
-                  <Typography variant="body2">
-                    {selectedReport.completed_at ? formatDate(selectedReport.completed_at) : 'Not completed'}
-                  </Typography>
-                </Grid>
-              </Grid>
-
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
-                Available Formats
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<PdfIcon />}
-                  onClick={() => handleDownloadReport(selectedReport.job_id)}
-                  disabled={selectedReport.status !== 'completed'}
-                  sx={{
-                    borderColor: colors.severity.critical,
-                    color: colors.severity.critical,
-                    '&:hover': {
-                      borderColor: colors.severity.critical,
-                      backgroundColor: colors.severity.critical + '10',
-                    },
-                  }}
-                >
-                  PDF Report
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<DocIcon />}
-                  disabled
-                  sx={{ opacity: 0.5 }}
-                >
-                  Word Document (Coming Soon)
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<CsvIcon />}
-                  disabled
-                  sx={{ opacity: 0.5 }}
-                >
-                  CSV Export (Coming Soon)
-                </Button>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClosePreview}>Close</Button>
-          {selectedReport && selectedReport.status === 'completed' && (
-            <Button
-              variant="contained"
-              onClick={() => handleDownloadReport(selectedReport.job_id)}
-              sx={{
-                backgroundColor: colors.primary.main,
-                '&:hover': {
-                  backgroundColor: colors.primary.dark,
-                },
-              }}
-            >
-              Download Report
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+            <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+              Try adjusting your filters or run some scans to generate reports.
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
     </Box>
   );
 };

@@ -1,24 +1,24 @@
 import { createTheme, ThemeOptions } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
 
-// Cybersecurity color palette
+// VertexGuard-inspired color palette
 const colors = {
   primary: {
-    main: '#00D4FF',
-    light: '#33DCFF',
-    dark: '#0094CC',
-    contrastText: '#000000',
+    main: '#8B5CF6', // Purple from the image
+    light: '#A78BFA',
+    dark: '#7C3AED',
+    contrastText: '#FFFFFF',
   },
   secondary: {
-    main: '#FF6B35',
-    light: '#FF8F5C',
-    dark: '#CC5527',
+    main: '#EC4899', // Fuchsia/Pink from the image
+    light: '#F472B6',
+    dark: '#DB2777',
     contrastText: '#FFFFFF',
   },
   background: {
-    default: '#0A0A0A',
-    paper: '#1A1A1A',
-    elevated: '#2A2A2A',
+    default: '#1A1A2E', // Dark charcoal from the image
+    paper: '#2C2C4A', // Slightly lighter card background
+    elevated: '#3A3A5A',
   },
   text: {
     primary: '#FFFFFF',
@@ -27,7 +27,7 @@ const colors = {
   },
   severity: {
     critical: '#FF4444',
-    high: '#FFBB33',
+    high: '#FF6B35', // Orange from the image
     medium: '#FFDD59',
     low: '#4CAF50',
     info: '#2196F3',
@@ -38,12 +38,12 @@ const colors = {
     error: '#F44336',
     info: '#2196F3',
   },
-  terminal: {
-    background: '#000000',
-    text: '#00FF00',
-    prompt: '#00D4FF',
-    error: '#FF4444',
-    warning: '#FFBB33',
+  accent: {
+    purple: '#8B5CF6',
+    fuchsia: '#EC4899',
+    orange: '#FF6B35',
+    blue: '#3B82F6',
+    teal: '#14B8A6',
   },
   border: {
     primary: '#333333',
@@ -77,44 +77,52 @@ const themeOptions: ThemeOptions = {
     divider: colors.border.primary,
   },
   typography: {
-    fontFamily: '"Roboto Mono", "JetBrains Mono", "Fira Code", monospace',
+    fontFamily: '"Inter", "Poppins", "Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
       fontSize: '2.5rem',
-      fontWeight: 600,
+      fontWeight: 700,
       lineHeight: 1.2,
+      color: colors.text.primary,
     },
     h2: {
       fontSize: '2rem',
       fontWeight: 600,
       lineHeight: 1.3,
+      color: colors.text.primary,
     },
     h3: {
       fontSize: '1.5rem',
       fontWeight: 600,
       lineHeight: 1.4,
+      color: colors.text.primary,
     },
     h4: {
       fontSize: '1.25rem',
       fontWeight: 600,
       lineHeight: 1.4,
+      color: colors.text.primary,
     },
     h5: {
       fontSize: '1.125rem',
       fontWeight: 600,
       lineHeight: 1.5,
+      color: colors.text.primary,
     },
     h6: {
       fontSize: '1rem',
       fontWeight: 600,
       lineHeight: 1.5,
+      color: colors.text.primary,
     },
     body1: {
       fontSize: '0.875rem',
       lineHeight: 1.6,
+      color: colors.text.primary,
     },
     body2: {
       fontSize: '0.75rem',
       lineHeight: 1.6,
+      color: colors.text.secondary,
     },
     code: {
       fontFamily: '"Roboto Mono", "JetBrains Mono", "Fira Code", monospace',
@@ -150,12 +158,13 @@ const themeOptions: ThemeOptions = {
         root: {
           backgroundColor: colors.background.paper,
           border: `1px solid ${colors.border.primary}`,
-          borderRadius: '8px',
+          borderRadius: '12px',
           boxShadow: `0 4px 20px ${alpha(colors.background.default, 0.8)}`,
-          transition: 'box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out',
+          transition: 'all 0.3s ease-in-out',
           '&:hover': {
-            boxShadow: `0 8px 32px ${alpha(colors.primary.main, 0.1)}`,
+            boxShadow: `0 8px 32px ${alpha(colors.primary.main, 0.15)}`,
             borderColor: colors.border.secondary,
+            transform: 'translateY(-2px)',
           },
         },
       },
@@ -179,19 +188,23 @@ const themeOptions: ThemeOptions = {
         root: {
           textTransform: 'none',
           fontWeight: 600,
-          borderRadius: '6px',
-          padding: '8px 16px',
-          transition: 'all 0.2s ease-in-out',
+          borderRadius: '8px',
+          padding: '10px 20px',
+          transition: 'all 0.3s ease-in-out',
+          fontSize: '0.875rem',
         },
         contained: {
+          backgroundColor: colors.primary.main,
           boxShadow: `0 2px 8px ${alpha(colors.primary.main, 0.3)}`,
           '&:hover': {
+            backgroundColor: colors.primary.dark,
             boxShadow: `0 4px 16px ${alpha(colors.primary.main, 0.4)}`,
             transform: 'translateY(-1px)',
           },
         },
         outlined: {
           borderColor: colors.border.secondary,
+          color: colors.text.primary,
           '&:hover': {
             borderColor: colors.primary.main,
             backgroundColor: alpha(colors.primary.main, 0.05),
@@ -203,6 +216,7 @@ const themeOptions: ThemeOptions = {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
+            borderRadius: '8px',
             '& fieldset': {
               borderColor: colors.border.secondary,
             },
@@ -221,6 +235,7 @@ const themeOptions: ThemeOptions = {
         root: {
           border: `1px solid ${colors.border.primary}`,
           backgroundColor: colors.background.paper,
+          borderRadius: '8px',
           '& .MuiDataGrid-cell': {
             borderColor: colors.border.primary,
           },
@@ -285,6 +300,23 @@ const themeOptions: ThemeOptions = {
         paper: {
           backgroundColor: colors.background.paper,
           borderRight: `1px solid ${colors.border.primary}`,
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '8px',
+          margin: '4px 8px',
+          '&.Mui-selected': {
+            backgroundColor: colors.primary.main,
+            '&:hover': {
+              backgroundColor: colors.primary.dark,
+            },
+          },
+          '&:hover': {
+            backgroundColor: alpha(colors.primary.main, 0.1),
+          },
         },
       },
     },

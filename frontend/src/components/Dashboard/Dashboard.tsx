@@ -13,6 +13,10 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   Security as SecurityIcon,
@@ -24,6 +28,14 @@ import {
   Speed as SpeedIcon,
   Shield as ShieldIcon,
   Warning as WarningIcon,
+  PlayArrow as PlayIcon,
+  Image as ImageIcon,
+  Cloud as CloudIcon,
+  Folder as FolderIcon,
+  MoreVert as MoreVertIcon,
+  Computer as ComputerIcon,
+  CalendarToday as CalendarIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material';
 import {
   PieChart,
@@ -47,23 +59,37 @@ import { apiClient } from '../../utils/api';
 import { colors } from '../../theme/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { Job, Vulnerability, HealthStatus } from '../../types/api';
+import { alpha } from '@mui/material/styles';
 
-interface DashboardStats {
-  totalJobs: number;
-  runningJobs: number;
-  completedJobs: number;
-  failedJobs: number;
-  totalVulnerabilities: number;
-  criticalVulnerabilities: number;
-  highVulnerabilities: number;
-  mediumVulnerabilities: number;
-  lowVulnerabilities: number;
+interface CurrentRiskCard {
+  title: string;
+  percentage: number;
+  icon: React.ReactNode;
+  color: string;
 }
 
-interface ActivityData {
+interface ThreatData {
   date: string;
-  scans: number;
-  vulnerabilities: number;
+  threats: number;
+}
+
+interface VirusData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface ThreatDetail {
+  date: string;
+  deviceId: string;
+  virusName: string;
+  filePath: string;
+  fileType: string;
+}
+
+interface DeviceThreat {
+  deviceId: string;
+  threatLevel: number;
 }
 
 const Dashboard: React.FC = () => {
@@ -93,367 +119,557 @@ const Dashboard: React.FC = () => {
     refetchInterval: 30000,
   });
 
-  // Mock data for demonstration
-  const mockStats: DashboardStats = {
-    totalJobs: 156,
-    runningJobs: 3,
-    completedJobs: 142,
-    failedJobs: 11,
-    totalVulnerabilities: 89,
-    criticalVulnerabilities: 12,
-    highVulnerabilities: 23,
-    mediumVulnerabilities: 34,
-    lowVulnerabilities: 20,
-  };
-
-  const vulnerabilityData = [
-    { name: 'Critical', value: mockStats.criticalVulnerabilities, color: colors.severity.critical },
-    { name: 'High', value: mockStats.highVulnerabilities, color: colors.severity.high },
-    { name: 'Medium', value: mockStats.mediumVulnerabilities, color: colors.severity.medium },
-    { name: 'Low', value: mockStats.lowVulnerabilities, color: colors.severity.low },
+  // Current Risk Cards Data
+  const currentRiskCards: CurrentRiskCard[] = [
+    {
+      title: 'Total Threats',
+      percentage: 132,
+      icon: <BugReportIcon />,
+      color: colors.accent.fuchsia,
+    },
+    {
+      title: 'Video File Risk',
+      percentage: 89,
+      icon: <PlayIcon />,
+      color: colors.primary.main,
+    },
+    {
+      title: 'Image File Risk',
+      percentage: 156,
+      icon: <ImageIcon />,
+      color: colors.accent.fuchsia,
+    },
+    {
+      title: 'Docs File Risk',
+      percentage: 78,
+      icon: <CloudIcon />,
+      color: colors.accent.blue,
+    },
+    {
+      title: 'Folder File Risk',
+      percentage: 95,
+      icon: <FolderIcon />,
+      color: colors.accent.blue,
+    },
   ];
 
-  const activityData: ActivityData[] = [
-    { date: '2024-01-15', scans: 12, vulnerabilities: 8 },
-    { date: '2024-01-16', scans: 15, vulnerabilities: 12 },
-    { date: '2024-01-17', scans: 8, vulnerabilities: 6 },
-    { date: '2024-01-18', scans: 20, vulnerabilities: 15 },
-    { date: '2024-01-19', scans: 18, vulnerabilities: 11 },
-    { date: '2024-01-20', scans: 14, vulnerabilities: 9 },
-    { date: '2024-01-21', scans: 22, vulnerabilities: 18 },
+  // Threat Summary Data
+  const threatData: ThreatData[] = [
+    { date: 'Jan', threats: 15 },
+    { date: 'Feb', threats: 22 },
+    { date: 'Mar', threats: 18 },
+    { date: 'Apr', threats: 25 },
+    { date: 'May', threats: 30 },
+    { date: 'Jun', threats: 29 },
+    { date: 'Jul', threats: 35 },
+    { date: 'Aug', threats: 28 },
+    { date: 'Sep', threats: 32 },
+    { date: 'Oct', threats: 38 },
+    { date: 'Nov', threats: 42 },
+    { date: 'Dec', threats: 45 },
   ];
 
-  const jobStatusData = [
-    { name: 'Completed', value: mockStats.completedJobs, color: colors.severity.low },
-    { name: 'Running', value: mockStats.runningJobs, color: colors.primary.main },
-    { name: 'Failed', value: mockStats.failedJobs, color: colors.severity.critical },
+  // Threats By Virus Data
+  const virusData: VirusData[] = [
+    { name: 'ILOVEYOU', value: 25, color: colors.primary.main },
+    { name: 'Melissa', value: 20, color: colors.accent.fuchsia },
+    { name: 'MyDoom', value: 15, color: colors.accent.blue },
+    { name: 'Sasser', value: 5, color: colors.accent.orange },
   ];
 
-  const StatCard: React.FC<{
-    title: string;
-    value: number;
-    icon: React.ReactNode;
-    color: string;
-    subtitle?: string;
-  }> = ({ title, value, icon, color, subtitle }) => (
+  // Threat Details Data
+  const threatDetails: ThreatDetail[] = [
+    {
+      date: '2024-01-15',
+      deviceId: 'DEV-001',
+      virusName: 'ILOVEYOU',
+      filePath: '/usr/local/bin/',
+      fileType: '.exe',
+    },
+    {
+      date: '2024-01-14',
+      deviceId: 'DEV-002',
+      virusName: 'Melissa',
+      filePath: '/home/user/',
+      fileType: '.doc',
+    },
+    {
+      date: '2024-01-13',
+      deviceId: 'DEV-003',
+      virusName: 'MyDoom',
+      filePath: '/var/log/',
+      fileType: '.zip',
+    },
+  ];
+
+  // Device Threats Data
+  const deviceThreats: DeviceThreat[] = [
+    { deviceId: 'crazyfish228', threatLevel: 85 },
+    { deviceId: 'angryswan732', threatLevel: 65 },
+    { deviceId: 'silentwolf445', threatLevel: 92 },
+    { deviceId: 'braveeagle123', threatLevel: 78 },
+  ];
+
+  const CurrentRiskCard: React.FC<{ card: CurrentRiskCard }> = ({ card }) => (
     <Card
       sx={{
         height: '100%',
-        background: `linear-gradient(135deg, ${color}20 0%, ${color}10 100%)`,
-        border: `1px solid ${color}40`,
-        transition: 'all 0.2s ease-in-out',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+        transition: 'all 0.3s ease-in-out',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: `0 8px 32px ${color}30`,
+          boxShadow: `0 8px 32px ${alpha(card.color, 0.2)}`,
         },
       }}
     >
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="h3" sx={{ fontWeight: 600, color }}>
-              {value}
-            </Typography>
-            <Typography variant="h6" sx={{ color: colors.text.primary, mb: 0.5 }}>
-              {title}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 64,
-              height: 64,
+              width: 48,
+              height: 48,
               borderRadius: '50%',
-              backgroundColor: color + '30',
-              color,
+              backgroundColor: alpha(card.color, 0.2),
+              color: card.color,
             }}
           >
-            {icon}
+            {card.icon}
+          </Box>
+          <IconButton size="small">
+            <MoreVertIcon sx={{ color: colors.text.secondary }} />
+          </IconButton>
+        </Box>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary, mb: 0.5 }}>
+          {card.percentage}%
+        </Typography>
+        <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+          {card.title}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+
+  const RiskScoreGauge: React.FC = () => (
+    <Card
+      sx={{
+        height: '100%',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+            Risk Score
+          </Typography>
+          <IconButton size="small">
+            <MoreVertIcon sx={{ color: colors.text.secondary }} />
+          </IconButton>
+        </Box>
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {/* Semi-circular gauge */}
+          <Box
+            sx={{
+              position: 'relative',
+              width: 120,
+              height: 60,
+              mb: 2,
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                borderRadius: '120px 120px 0 0',
+                background: `conic-gradient(from 0deg, ${colors.accent.orange} 0deg, ${colors.accent.orange} 266deg, ${colors.border.secondary} 266deg, ${colors.border.secondary} 360deg)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary }}>
+                741
+              </Typography>
+              <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                / 1000
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Chip
+            label="High"
+            sx={{
+              backgroundColor: colors.accent.orange,
+              color: colors.text.primary,
+              fontWeight: 600,
+            }}
+          />
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
+  const ThreatSummaryChart: React.FC = () => (
+    <Card
+      sx={{
+        height: '100%',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+            Threat Summary
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <Select
+              value="yearly"
+              sx={{
+                color: colors.text.primary,
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: colors.border.secondary,
+                },
+              }}
+            >
+              <MenuItem value="yearly">Yearly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+        
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={threatData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border.primary} />
+            <XAxis
+              dataKey="date"
+              stroke={colors.text.secondary}
+              fontSize={12}
+            />
+            <YAxis
+              stroke={colors.text.secondary}
+              fontSize={12}
+              domain={[0, 500]}
+            />
+            <RechartsTooltip
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <Box
+                      sx={{
+                        backgroundColor: colors.background.paper,
+                        border: `1px solid ${colors.border.primary}`,
+                        borderRadius: 1,
+                        p: 1,
+                        boxShadow: `0 4px 16px ${alpha(colors.background.default, 0.8)}`,
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ mb: 1, color: colors.primary.main }}>
+                        {label} 2024
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: colors.primary.main, fontWeight: 600 }}>
+                        Threats {payload[0]?.value}
+                      </Typography>
+                    </Box>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="threats"
+              stroke={colors.primary.main}
+              strokeWidth={3}
+              dot={{ fill: colors.primary.main, strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, stroke: colors.primary.main, strokeWidth: 2 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+
+  const ThreatsByVirusChart: React.FC = () => (
+    <Card
+      sx={{
+        height: '100%',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+            Threats By Virus
+          </Typography>
+          <IconButton size="small">
+            <MoreVertIcon sx={{ color: colors.text.secondary }} />
+          </IconButton>
+        </Box>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ flex: 1 }}>
+            <ResponsiveContainer width="100%" height={150}>
+              <PieChart>
+                <Pie
+                  data={virusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={30}
+                  outerRadius={60}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {virusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <Box sx={{ textAlign: 'center', mt: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: colors.text.primary }}>
+                Total 65%
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Box sx={{ ml: 2 }}>
+            {virusData.map((virus, index) => (
+              <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: virus.color,
+                    mr: 1,
+                  }}
+                />
+                <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                  {virus.name}
+                </Typography>
+              </Box>
+            ))}
           </Box>
         </Box>
       </CardContent>
     </Card>
   );
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <Box
-          sx={{
-            backgroundColor: colors.background.paper,
-            border: `1px solid ${colors.border.primary}`,
-            borderRadius: 1,
-            p: 1,
-            boxShadow: `0 4px 16px ${colors.background.default}80`,
-          }}
-        >
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            {label}
+  const ThreatDetailsTable: React.FC = () => (
+    <Card
+      sx={{
+        height: '100%',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+            Threat Details
           </Typography>
-          {payload.map((entry: any, index: number) => (
-            <Typography
-              key={index}
-              variant="body2"
-              sx={{ color: entry.color, fontWeight: 600 }}
-            >
-              {entry.name}: {entry.value}
-            </Typography>
-          ))}
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <Box sx={{ flexGrow: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Welcome back, {user?.username}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Refresh Data">
-            <IconButton
-              onClick={() => {
-                refetchJobs();
-                refetchHealth();
-              }}
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <Select
+              value="daily"
               sx={{
-                backgroundColor: colors.primary.main + '20',
-                '&:hover': {
-                  backgroundColor: colors.primary.main + '30',
+                color: colors.text.primary,
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: colors.border.secondary,
                 },
               }}
             >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
-      </Box>
+        
+        <Box sx={{ overflowX: 'auto' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <CalendarIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 16 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                Date
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <ComputerIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 16 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                Device ID
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <BugReportIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 16 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                Virus name
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FolderIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 16 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                File Path
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <DescriptionIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 16 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                File Type
+              </Typography>
+            </Box>
+          </Box>
+          
+          {threatDetails.map((detail, index) => (
+            <Box
+              key={index}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, 1fr)',
+                gap: 2,
+                py: 1,
+                borderBottom: `1px solid ${colors.border.primary}`,
+              }}
+            >
+              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                {detail.date}
+              </Typography>
+              <Typography variant="body2" sx={{ color: colors.text.primary }}>
+                {detail.deviceId}
+              </Typography>
+              <Typography variant="body2" sx={{ color: colors.text.primary }}>
+                {detail.virusName}
+              </Typography>
+              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                {detail.filePath}
+              </Typography>
+              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                {detail.fileType}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 
-      {/* Health Status Alert */}
-      {healthStatus && healthStatus.status === 'unhealthy' && (
-        <Alert
-          severity="warning"
-          sx={{
-            mb: 3,
-            backgroundColor: colors.severity.high + '20',
-            color: colors.severity.high,
-            border: `1px solid ${colors.severity.high}40`,
-          }}
-        >
-          Some services are experiencing issues. Check the system status for details.
-        </Alert>
-      )}
+  const DeviceThreatsList: React.FC = () => (
+    <Card
+      sx={{
+        height: '100%',
+        backgroundColor: colors.background.paper,
+        border: `1px solid ${colors.border.primary}`,
+        borderRadius: 2,
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+            Threat by device
+          </Typography>
+          <IconButton size="small">
+            <MoreVertIcon sx={{ color: colors.text.secondary }} />
+          </IconButton>
+        </Box>
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {deviceThreats.map((device, index) => (
+            <Box
+              key={index}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                p: 1,
+                borderRadius: 1,
+                backgroundColor: alpha(colors.background.elevated, 0.5),
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <ComputerIcon sx={{ mr: 1, color: colors.text.secondary }} />
+                <Typography variant="body2" sx={{ color: colors.text.primary }}>
+                  {device.deviceId}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: `conic-gradient(from 0deg, ${colors.accent.orange} 0deg, ${colors.accent.orange} ${device.threatLevel * 3.6}deg, ${colors.border.secondary} ${device.threatLevel * 3.6}deg, ${colors.border.secondary} 360deg)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Typography variant="caption" sx={{ color: colors.text.primary, fontWeight: 600 }}>
+                  {device.threatLevel}%
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 
-      {/* Stats Cards */}
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      {/* Current Risk Section */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Scans"
-            value={mockStats.totalJobs}
-            icon={<SecurityIcon fontSize="large" />}
-            color={colors.primary.main}
-            subtitle="All time"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Running Jobs"
-            value={mockStats.runningJobs}
-            icon={<SpeedIcon fontSize="large" />}
-            color={colors.status.info}
-            subtitle="Currently active"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Vulnerabilities"
-            value={mockStats.totalVulnerabilities}
-            icon={<BugReportIcon fontSize="large" />}
-            color={colors.severity.high}
-            subtitle="Total found"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Critical Issues"
-            value={mockStats.criticalVulnerabilities}
-            icon={<WarningIcon fontSize="large" />}
-            color={colors.severity.critical}
-            subtitle="Need attention"
-          />
-        </Grid>
+        {currentRiskCards.map((card, index) => (
+          <Grid item xs={12} sm={6} md={2.4} key={index}>
+            <CurrentRiskCard card={card} />
+          </Grid>
+        ))}
       </Grid>
 
-      {/* Charts */}
+      {/* Risk Score and Charts */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Activity Timeline
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={colors.border.primary} />
-                  <XAxis
-                    dataKey="date"
-                    stroke={colors.text.secondary}
-                    fontSize={12}
-                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                  />
-                  <YAxis stroke={colors.text.secondary} fontSize={12} />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="scans"
-                    stackId="1"
-                    stroke={colors.primary.main}
-                    fill={colors.primary.main}
-                    fillOpacity={0.6}
-                    name="Scans"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="vulnerabilities"
-                    stackId="1"
-                    stroke={colors.severity.high}
-                    fill={colors.severity.high}
-                    fillOpacity={0.6}
-                    name="Vulnerabilities"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <ThreatSummaryChart />
         </Grid>
-
         <Grid item xs={12} md={4}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Vulnerability Distribution
-              </Typography>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={vulnerabilityData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {vulnerabilityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <RiskScoreGauge />
         </Grid>
       </Grid>
 
-      {/* Job Status & Quick Actions */}
+      {/* Threats By Virus and Threat Details */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6}>
+          <ThreatsByVirusChart />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <ThreatDetailsTable />
+        </Grid>
+      </Grid>
+
+      {/* Device Threats */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Job Status Distribution
-              </Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={jobStatusData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={colors.border.primary} />
-                  <XAxis dataKey="name" stroke={colors.text.secondary} fontSize={12} />
-                  <YAxis stroke={colors.text.secondary} fontSize={12} />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" fill={colors.primary.main} radius={[4, 4, 0, 0]}>
-                    {jobStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Quick Actions
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<NetworkIcon />}
-                  href="/tools/nmap"
-                  sx={{
-                    backgroundColor: colors.primary.main,
-                    '&:hover': {
-                      backgroundColor: colors.primary.dark,
-                    },
-                  }}
-                >
-                  Run Network Scan
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<BugReportIcon />}
-                  href="/tools/vulnerability"
-                  sx={{
-                    backgroundColor: colors.severity.high,
-                    '&:hover': {
-                      backgroundColor: colors.severity.high + 'CC',
-                    },
-                  }}
-                >
-                  Vulnerability Assessment
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AssignmentIcon />}
-                  href="/reports"
-                  sx={{
-                    backgroundColor: colors.status.info,
-                    '&:hover': {
-                      backgroundColor: colors.status.info + 'CC',
-                    },
-                  }}
-                >
-                  Generate Report
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<ShieldIcon />}
-                  href="/tools/sql-injection"
-                  sx={{
-                    backgroundColor: colors.severity.medium,
-                    '&:hover': {
-                      backgroundColor: colors.severity.medium + 'CC',
-                    },
-                  }}
-                >
-                  SQL Injection Scanner
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
+          <DeviceThreatsList />
         </Grid>
       </Grid>
     </Box>

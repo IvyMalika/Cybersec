@@ -18,6 +18,11 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  TextField,
+  InputAdornment,
+  Button,
+  Card,
+  CardContent,
 } from '@mui/material';
 import ListItemButton from '@mui/material/ListItemButton';
 import {
@@ -45,12 +50,19 @@ import {
   Psychology as PsychologyIcon,
   PersonSearch as PersonSearchIcon,
   Gavel as GavelIcon,
+  KeyboardArrowRight as ArrowRightIcon,
+  KeyboardArrowUp as ArrowUpIcon,
+  KeyboardArrowDown as ArrowDownIcon,
+  Chat as ChatIcon,
+  Upgrade as UpgradeIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { colors } from '../../theme/theme';
+import { alpha } from '@mui/material/styles';
+import WarningIcon from '@mui/icons-material/Warning';
 
-const drawerWidth = 260;
+const drawerWidth = 280;
 
 interface NavigationItem {
   id: string;
@@ -58,14 +70,36 @@ interface NavigationItem {
   icon: React.ReactNode;
   path: string;
   roles?: string[];
+  hasSubmenu?: boolean;
 }
 
 const navigationItems: NavigationItem[] = [
   {
     id: 'dashboard',
-    label: 'Dashboard',
+    label: 'Overview',
     icon: <DashboardIcon />,
     path: '/dashboard',
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: <AssessmentIcon />,
+    path: '/reports',
+    hasSubmenu: true,
+  },
+  {
+    id: 'threats',
+    label: 'Threats',
+    icon: <BugReportIcon />,
+    path: '/threats',
+    hasSubmenu: true,
+  },
+  {
+    id: 'issues',
+    label: 'Issues',
+    icon: <WarningIcon />,
+    path: '/issues',
+    hasSubmenu: true,
   },
   {
     id: 'nmap',
@@ -171,12 +205,6 @@ const navigationItems: NavigationItem[] = [
     roles: ['admin', 'analyst'],
   },
   {
-    id: 'reports',
-    label: 'Reports',
-    icon: <AssessmentIcon />,
-    path: '/reports',
-  },
-  {
     id: 'jobs',
     label: 'Jobs',
     icon: <AssessmentIcon />,
@@ -258,63 +286,247 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   });
 
   const drawer = (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Logo Section */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          p: 2,
+          p: 3,
           borderBottom: `1px solid ${colors.border.primary}`,
+          backgroundColor: colors.background.paper,
         }}
       >
-        <SecurityIcon sx={{ mr: 1, color: colors.primary.main, fontSize: 28 }} />
-        <Typography variant="h6" sx={{ fontWeight: 600, color: colors.primary.main }}>
-          CyberSec Suite
+        <ShieldIcon sx={{ mr: 1, color: colors.primary.main, fontSize: 32 }} />
+        <Typography variant="h5" sx={{ fontWeight: 700, color: colors.primary.main }}>
+          VertexGuard
         </Typography>
       </Box>
-      <List sx={{ pt: 2 }}>
-        {filteredNavItems.map((item) => (
-          <ListItemButton
-            key={item.id}
-            onClick={() => handleNavigate(item.path)}
-            selected={location.pathname === item.path}
-            sx={{
-              mx: 1,
-              mb: 0.5,
-              borderRadius: 1,
-              backgroundColor: location.pathname === item.path ? 
-                colors.primary.main + '20' : 'transparent',
-              '&:hover': {
-                backgroundColor: location.pathname === item.path ? 
-                  colors.primary.main + '30' : colors.background.elevated,
-              },
-              transition: 'background-color 0.2s ease-in-out',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <ListItemIcon
+
+      {/* Navigation Sections */}
+      <Box sx={{ flexGrow: 1, p: 2 }}>
+        {/* General Section */}
+        <Typography
+          variant="overline"
+          sx={{
+            color: colors.text.secondary,
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            mb: 1,
+            display: 'block',
+          }}
+        >
+          GENERAL
+        </Typography>
+        <List sx={{ mb: 3 }}>
+          {filteredNavItems.slice(0, 4).map((item) => (
+            <ListItemButton
+              key={item.id}
+              onClick={() => handleNavigate(item.path)}
+              selected={location.pathname === item.path}
               sx={{
-                color: location.pathname === item.path ? 
-                  colors.primary.main : colors.text.secondary,
-                minWidth: 40,
+                borderRadius: 2,
+                mb: 0.5,
+                backgroundColor: location.pathname === item.path ? 
+                  colors.primary.main : 'transparent',
+                '&:hover': {
+                  backgroundColor: location.pathname === item.path ? 
+                    colors.primary.dark : alpha(colors.primary.main, 0.1),
+                },
+                transition: 'all 0.3s ease-in-out',
               }}
             >
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText
-              primary={item.label}
-              primaryTypographyProps={{
-                fontSize: '0.875rem',
-                fontWeight: location.pathname === item.path ? 600 : 400,
-                color: location.pathname === item.path ? 
-                  colors.primary.main : colors.text.primary,
+              <ListItemIcon
+                sx={{
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.secondary,
+                  minWidth: 40,
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: location.pathname === item.path ? 600 : 400,
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.primary,
+                }}
+              />
+              {item.hasSubmenu && (
+                <ArrowRightIcon sx={{ color: colors.text.secondary, fontSize: 16 }} />
+              )}
+            </ListItemButton>
+          ))}
+        </List>
+
+        {/* Tools Section */}
+        <Typography
+          variant="overline"
+          sx={{
+            color: colors.text.secondary,
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            mb: 1,
+            display: 'block',
+          }}
+        >
+          TOOLS
+        </Typography>
+        <List sx={{ mb: 3 }}>
+          {filteredNavItems.slice(4, -3).map((item) => (
+            <ListItemButton
+              key={item.id}
+              onClick={() => handleNavigate(item.path)}
+              selected={location.pathname === item.path}
+              sx={{
+                borderRadius: 2,
+                mb: 0.5,
+                backgroundColor: location.pathname === item.path ? 
+                  colors.primary.main : 'transparent',
+                '&:hover': {
+                  backgroundColor: location.pathname === item.path ? 
+                    colors.primary.dark : alpha(colors.primary.main, 0.1),
+                },
+                transition: 'all 0.3s ease-in-out',
               }}
-            />
-          </ListItemButton>
-        ))}
-      </List>
+            >
+              <ListItemIcon
+                sx={{
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.secondary,
+                  minWidth: 40,
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: location.pathname === item.path ? 600 : 400,
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.primary,
+                }}
+              />
+            </ListItemButton>
+          ))}
+        </List>
+
+        {/* Settings Section */}
+        <Typography
+          variant="overline"
+          sx={{
+            color: colors.text.secondary,
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            mb: 1,
+            display: 'block',
+          }}
+        >
+          SETTINGS
+        </Typography>
+        <List sx={{ mb: 3 }}>
+          {filteredNavItems.slice(-3).map((item) => (
+            <ListItemButton
+              key={item.id}
+              onClick={() => handleNavigate(item.path)}
+              selected={location.pathname === item.path}
+              sx={{
+                borderRadius: 2,
+                mb: 0.5,
+                backgroundColor: location.pathname === item.path ? 
+                  colors.primary.main : 'transparent',
+                '&:hover': {
+                  backgroundColor: location.pathname === item.path ? 
+                    colors.primary.dark : alpha(colors.primary.main, 0.1),
+                },
+                transition: 'all 0.3s ease-in-out',
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.secondary,
+                  minWidth: 40,
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: location.pathname === item.path ? 600 : 400,
+                  color: location.pathname === item.path ? 
+                    colors.text.primary : colors.text.primary,
+                }}
+              />
+            </ListItemButton>
+          ))}
+        </List>
+      </Box>
+
+      {/* Upgrade Card */}
+      <Box sx={{ p: 2 }}>
+        <Card
+          sx={{
+            backgroundColor: alpha(colors.primary.main, 0.1),
+            border: `1px solid ${colors.primary.main}40`,
+            borderRadius: 2,
+          }}
+        >
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <UpgradeIcon sx={{ color: colors.accent.teal, mr: 1, fontSize: 20 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                Upgrade to Pro
+              </Typography>
+            </Box>
+            <Typography variant="caption" sx={{ color: colors.text.secondary, mb: 2, display: 'block' }}>
+              Get advanced features and priority support
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              endIcon={<ArrowRightIcon />}
+              sx={{
+                backgroundColor: colors.primary.main,
+                '&:hover': {
+                  backgroundColor: colors.primary.dark,
+                },
+                fontSize: '0.75rem',
+                py: 0.5,
+                px: 1.5,
+              }}
+            >
+              Upgrade
+            </Button>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Logout Button */}
+      <Box sx={{ p: 2, borderTop: `1px solid ${colors.border.primary}` }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<LogoutIcon />}
+          onClick={handleLogout}
+          sx={{
+            borderColor: colors.border.secondary,
+            color: colors.text.primary,
+            '&:hover': {
+              borderColor: colors.severity.critical,
+              color: colors.severity.critical,
+            },
+          }}
+        >
+          Log Out
+        </Button>
+      </Box>
     </Box>
   );
 
@@ -326,10 +538,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
           backgroundColor: colors.background.paper,
-          boxShadow: `0 2px 8px ${colors.background.default}40`,
+          boxShadow: `0 2px 8px ${alpha(colors.background.default, 0.4)}`,
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ px: 3 }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -339,16 +551,60 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography
-            variant="h6"
-            sx={{
-              flexGrow: 1,
-              fontWeight: 600,
-              color: colors.text.primary,
-            }}
-          >
-            {filteredNavItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
-          </Typography>
+
+          {/* Header Content */}
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+            {/* User Welcome */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 4 }}>
+              <Avatar
+                sx={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: colors.accent.teal,
+                  fontSize: '1rem',
+                  mr: 2,
+                }}
+              >
+                {user?.username?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Box>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                  Welcome! {user?.username}
+                </Typography>
+                <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                  Security is a process, not a product.
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Search Bar */}
+            <TextField
+              placeholder="Search Here"
+              variant="outlined"
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: colors.text.secondary }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                minWidth: 300,
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: colors.background.elevated,
+                  '& fieldset': {
+                    borderColor: colors.border.secondary,
+                  },
+                  '&:hover fieldset': {
+                    borderColor: colors.border.accent,
+                  },
+                },
+              }}
+            />
+          </Box>
+
+          {/* Header Actions */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Tooltip title="Notifications">
               <IconButton color="inherit">
@@ -357,18 +613,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </Badge>
               </IconButton>
             </Tooltip>
-            <Tooltip title="Profile">
-              <IconButton onClick={handleProfileMenuOpen}>
-                <Avatar
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    backgroundColor: colors.primary.main,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  {user?.username?.charAt(0).toUpperCase()}
-                </Avatar>
+            <Tooltip title="Messages">
+              <IconButton color="inherit">
+                <Badge badgeContent={1} color="error">
+                  <ChatIcon />
+                </Badge>
               </IconButton>
             </Tooltip>
           </Box>
@@ -423,6 +672,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             minWidth: 200,
             backgroundColor: colors.background.paper,
             border: `1px solid ${colors.border.primary}`,
+            borderRadius: 2,
           },
         }}
       >

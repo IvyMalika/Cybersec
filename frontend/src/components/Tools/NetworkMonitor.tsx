@@ -25,6 +25,7 @@ import {
   Divider,
   CircularProgress,
   Fade,
+  alpha,
   LinearProgress,
   List,
   ListItem,
@@ -38,10 +39,17 @@ import {
   Visibility as ViewIcon,
   NetworkCheck as NetworkIcon,
   Security as SecurityIcon,
+  ExpandMore as ExpandMoreIcon,
+  ErrorOutline as ErrorIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
+  MoreVert as MoreVertIcon,
+  Refresh as RefreshIcon,
+  TrendingUp as TrendingUpIcon,
+  Assessment as AssessmentIcon,
+  Speed as SpeedIcon,
   Router as RouterIcon,
-  Computer as ComputerIcon,
+  Wifi as WifiIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -53,571 +61,575 @@ import { NetworkMonitorRequest, NetworkMonitorResponse } from '../../types/api';
 import TerminalOutput from '../Common/TerminalOutput';
 import ScanProgress from '../Common/ScanProgress';
 
-const networkMonitorSchema = yup.object({
+const networkSchema = yup.object({
   interface: yup.string().required('Network interface is required'),
-  timeout: yup.number().min(10).max(300).required('Timeout is required'),
+  duration: yup.number().min(1).max(3600).required('Duration is required'),
+  filter: yup.string().optional(),
 });
 
-interface NetworkMonitorFormData {
+interface NetworkFormData {
   interface: string;
-  timeout: number;
+  duration: number;
+  filter?: string;
 }
 
 const networkInterfaces = [
-  { value: 'eth0', label: 'Ethernet (eth0)', description: 'Primary ethernet interface' },
-  { value: 'wlan0', label: 'Wireless (wlan0)', description: 'Wireless network interface' },
-  { value: 'lo', label: 'Loopback (lo)', description: 'Local loopback interface' },
-  { value: 'any', label: 'All Interfaces', description: 'Monitor all network interfaces' },
+  { value: 'eth0', label: 'Ethernet 0', description: 'Primary network interface' },
+  { value: 'wlan0', label: 'Wireless LAN 0', description: 'WiFi interface' },
+  { value: 'lo', label: 'Loopback', description: 'Local loopback interface' },
+  { value: 'any', label: 'All Interfaces', description: 'Monitor all interfaces' },
 ];
 
+const NetworkStatCard: React.FC<{
+  title: string;
+  value: string | number;
+  color: string;
+  icon: React.ReactNode;
+  subtitle?: string;
+  trend?: 'up' | 'down' | 'stable';
+}> = ({ title, value, color, icon, subtitle, trend }) => (
+  <Card
+    sx={{
+      backgroundColor: colors.background.paper,
+      border: `1px solid ${colors.border.primary}`,
+      borderRadius: 2,
+      transition: 'all 0.3s ease-in-out',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 32px ${alpha(color, 0.2)}`,
+      },
+    }}
+  >
+    <CardContent sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color, mr: 1 }}>
+              {value}
+            </Typography>
+            {trend && (
+              <TrendingUpIcon 
+                sx={{ 
+                  color: trend === 'up' ? colors.severity.critical : 
+                         trend === 'down' ? colors.severity.low : colors.text.secondary,
+                  fontSize: 16,
+                  transform: trend === 'down' ? 'rotate(180deg)' : 'none',
+                }} 
+              />
+            )}
+          </Box>
+          <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+            {title}
+          </Typography>
+          {subtitle && (
+            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            backgroundColor: alpha(color, 0.2),
+            color,
+          }}
+        >
+          {icon}
+        </Box>
+      </Box>
+    </CardContent>
+  </Card>
+);
+
 const NetworkMonitor: React.FC = () => {
-  const [monitorResults, setMonitorResults] = useState<NetworkMonitorResponse | null>(null);
+  const [monitoringResults, setMonitoringResults] = useState<NetworkMonitorResponse | null>(null);
   const [currentJobId, setCurrentJobId] = useState<number | null>(null);
-  const [showResults, setShowResults] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [realTimeData, setRealTimeData] = useState<any>(null);
 
   const {
     control,
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm<NetworkMonitorFormData>({
-    resolver: yupResolver(networkMonitorSchema),
+  } = useForm<NetworkFormData>({
+    resolver: yupResolver(networkSchema),
     defaultValues: {
       interface: 'eth0',
-      timeout: 60,
+      duration: 300,
+      filter: '',
     },
   });
 
   const selectedInterface = watch('interface');
-  const selectedTimeout = watch('timeout');
+  const selectedInterfaceData = networkInterfaces.find(iface => iface.value === selectedInterface);
 
-  const networkMutation = useMutation({
-    mutationFn: (data: NetworkMonitorRequest) => apiClient.monitorNetwork(data),
-    onSuccess: (data: NetworkMonitorResponse) => {
-      setMonitorResults(data);
-      setCurrentJobId(data.job_id);
-      setShowResults(true);
-      setIsMonitoring(false);
+  const monitoringMutation = useMutation({
+    mutationFn: (data: NetworkMonitorRequest) => apiClient.startNetworkMonitoring(data),
+    onSuccess: (response) => {
+      setCurrentJobId(response.job_id);
+      setIsMonitoring(true);
     },
     onError: (error) => {
       console.error('Network monitoring failed:', error);
-      setIsMonitoring(false);
     },
   });
 
-  const {
-    data: jobDetails,
-    isLoading: jobLoading,
-    error: jobError,
-  } = useQuery({
-    queryKey: ['job', currentJobId],
-    queryFn: () => apiClient.getJob(currentJobId!),
-    enabled: !!currentJobId,
-    refetchInterval: 2000,
+  const stopMonitoringMutation = useMutation({
+    mutationFn: () => apiClient.stopNetworkMonitoring(currentJobId!),
+    onSuccess: () => {
+      setIsMonitoring(false);
+    },
+    onError: (error) => {
+      console.error('Stop monitoring failed:', error);
+    },
   });
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isMonitoring && timeRemaining > 0) {
-      interval = setInterval(() => {
-        setTimeRemaining((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isMonitoring, timeRemaining]);
+  const { data: jobStatus } = useQuery({
+    queryKey: ['job', currentJobId],
+    queryFn: () => apiClient.getJobStatus(currentJobId!),
+    enabled: !!currentJobId && isMonitoring,
+    refetchInterval: 1000,
+  });
 
-  const onSubmit = (data: NetworkMonitorFormData) => {
-    setIsMonitoring(true);
-    setTimeRemaining(data.timeout);
-    networkMutation.mutate(data);
+  // Simulate real-time data updates
+  useEffect(() => {
+    if (isMonitoring) {
+      const interval = setInterval(() => {
+        setRealTimeData({
+          packets_per_sec: Math.floor(Math.random() * 1000) + 100,
+          bytes_per_sec: Math.floor(Math.random() * 1000000) + 100000,
+          connections: Math.floor(Math.random() * 50) + 10,
+          suspicious_activity: Math.floor(Math.random() * 5),
+          bandwidth_usage: Math.floor(Math.random() * 100),
+        });
+      }, 2000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isMonitoring]);
+
+  const onSubmit = (data: NetworkFormData) => {
+    monitoringMutation.mutate({
+      interface: data.interface,
+      duration: data.duration,
+      filter: data.filter,
+    });
   };
 
   const handleStopMonitoring = () => {
-    setIsMonitoring(false);
-    setTimeRemaining(0);
-    // In a real implementation, you would cancel the monitoring job
+    stopMonitoringMutation.mutate();
   };
 
   const handleDownloadReport = async () => {
-    if (!currentJobId) return;
-    
-    try {
-      const reportData = await apiClient.getJobReport(currentJobId);
-      const blob = new Blob([reportData], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `network_monitor_${currentJobId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download report:', error);
+    if (monitoringResults) {
+      try {
+        const response = await apiClient.downloadReport(monitoringResults.job_id);
+        const blob = new Blob([response], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `network-monitor-${monitoringResults.job_id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Download failed:', error);
+      }
     }
   };
-
-  const getSeverityColor = (type: string) => {
-    if (type.toLowerCase().includes('suspicious') || type.toLowerCase().includes('attack')) {
-      return colors.severity.critical;
-    }
-    if (type.toLowerCase().includes('anomaly') || type.toLowerCase().includes('unusual')) {
-      return colors.severity.high;
-    }
-    return colors.severity.medium;
-  };
-
-  const getAnomalyIcon = (type: string) => {
-    if (type.toLowerCase().includes('login')) {
-      return <SecurityIcon />;
-    }
-    if (type.toLowerCase().includes('flood') || type.toLowerCase().includes('dos')) {
-      return <WarningIcon />;
-    }
-    return <InfoIcon />;
-  };
-
-  const formatBytes = (bytes: number) => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    if (bytes === 0) return '0 Bytes';
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Defensive destructuring for monitorResults
-  const anomalies = Array.isArray(monitorResults?.results?.anomalies) ? monitorResults.results.anomalies : [];
-  const samplePackets = Array.isArray(monitorResults?.results?.sample_packets) ? monitorResults.results.sample_packets : [];
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
-        Network Monitor
-      </Typography>
+    <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary }}>
+          Network Monitor
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh">
+            <IconButton
+              onClick={() => window.location.reload()}
+              sx={{
+                backgroundColor: alpha(colors.primary.main, 0.1),
+                '&:hover': {
+                  backgroundColor: alpha(colors.primary.main, 0.2),
+                },
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
 
       <Grid container spacing={3}>
+        {/* Monitoring Configuration Card */}
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Monitor Configuration
-              </Typography>
+          <Card
+            sx={{
+              backgroundColor: colors.background.paper,
+              border: `1px solid ${colors.border.primary}`,
+              borderRadius: 2,
+              height: 'fit-content',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <NetworkIcon sx={{ mr: 2, color: colors.accent.blue, fontSize: 28 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                  Monitoring Configuration
+                </Typography>
+              </Box>
 
               <form onSubmit={handleSubmit(onSubmit)}>
-                <Controller
-                  name="interface"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                      <InputLabel>Network Interface</InputLabel>
-                      <Select {...field} label="Network Interface">
-                        {networkInterfaces.map((iface) => (
-                          <MenuItem key={iface.value} value={iface.value}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <NetworkIcon />
-                              <Box>
-                                <Typography variant="body1">{iface.label}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {iface.description}
-                                </Typography>
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="interface"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Network Interface</InputLabel>
+                        <Select {...field} label="Network Interface">
+                          {networkInterfaces.map((iface) => (
+                            <MenuItem key={iface.value} value={iface.value}>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: alpha(colors.accent.blue, 0.2),
+                                    color: colors.accent.blue,
+                                    mr: 2,
+                                  }}
+                                >
+                                  {iface.value.includes('wlan') ? <WifiIcon /> : <RouterIcon />}
+                                </Box>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {iface.label}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                    {iface.description}
+                                  </Typography>
+                                </Box>
                               </Box>
-                            </Box>
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  )}
-                />
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Box>
 
-                <Controller
-                  name="timeout"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Monitoring Duration (seconds)"
-                      type="number"
-                      inputProps={{ min: 10, max: 300 }}
-                      error={!!errors.timeout}
-                      helperText={errors.timeout?.message}
-                      sx={{ mb: 3 }}
-                    />
-                  )}
-                />
-
-                {!isMonitoring ? (
-                  <Button
-                    type="submit"
-                    fullWidth
-                    variant="contained"
-                    disabled={networkMutation.isPending}
-                    startIcon={networkMutation.isPending ? <CircularProgress size={20} /> : <PlayIcon />}
-                    sx={{
-                      backgroundColor: colors.primary.main,
-                      '&:hover': {
-                        backgroundColor: colors.primary.dark,
-                      },
-                    }}
-                  >
-                    {networkMutation.isPending ? 'Starting...' : 'Start Monitoring'}
-                  </Button>
-                ) : (
-                  <Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={((selectedTimeout - timeRemaining) / selectedTimeout) * 100}
-                      sx={{
-                        mb: 2,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: colors.background.elevated,
-                        '& .MuiLinearProgress-bar': {
-                          backgroundColor: colors.primary.main,
-                        },
-                      }}
-                    />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Time remaining: {formatTime(timeRemaining)}
-                      </Typography>
-                      <Chip
-                        label="MONITORING"
-                        size="small"
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="duration"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Duration (seconds)"
+                        type="number"
+                        fullWidth
+                        error={!!errors.duration}
+                        helperText={errors.duration?.message}
+                        inputProps={{ min: 1, max: 3600 }}
                         sx={{
-                          backgroundColor: colors.status.info + '30',
-                          color: colors.status.info,
-                          animation: 'pulse 2s infinite',
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: colors.background.elevated,
+                          },
                         }}
                       />
-                    </Box>
+                    )}
+                  />
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="filter"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Packet Filter (optional)"
+                        placeholder="tcp port 80 or udp port 53"
+                        fullWidth
+                        error={!!errors.filter}
+                        helperText={errors.filter?.message || 'BPF filter syntax'}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: colors.background.elevated,
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  {!isMonitoring ? (
                     <Button
+                      type="submit"
+                      variant="contained"
                       fullWidth
-                      variant="outlined"
-                      onClick={handleStopMonitoring}
-                      startIcon={<StopIcon />}
+                      disabled={monitoringMutation.isPending}
+                      startIcon={monitoringMutation.isPending ? <CircularProgress size={20} /> : <PlayIcon />}
                       sx={{
-                        borderColor: colors.severity.critical,
-                        color: colors.severity.critical,
+                        backgroundColor: colors.accent.blue,
                         '&:hover': {
-                          borderColor: colors.severity.critical,
-                          backgroundColor: colors.severity.critical + '10',
+                          backgroundColor: colors.accent.blue + 'CC',
                         },
+                        py: 1.5,
                       }}
                     >
-                      Stop Monitoring
+                      {monitoringMutation.isPending ? 'Starting...' : 'Start Monitoring'}
                     </Button>
-                  </Box>
-                )}
-              </form>
-
-              {networkMutation.error && (
-                <Alert
-                  severity="error"
-                  sx={{
-                    mt: 2,
-                    backgroundColor: colors.severity.critical + '20',
-                    color: colors.severity.critical,
-                    border: `1px solid ${colors.severity.critical}40`,
-                  }}
-                >
-                  {typeof networkMutation.error === 'string'
-                    ? networkMutation.error
-                    : networkMutation.error?.message
-                      ? networkMutation.error.message
-                      : networkMutation.error?.error
-                        ? networkMutation.error.error
-                        : JSON.stringify(networkMutation.error)}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Interface Details */}
-          <Card sx={{ mt: 2 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Interface Details
-              </Typography>
-              {networkInterfaces.map((iface) => (
-                <Box
-                  key={iface.value}
-                  sx={{
-                    p: 2,
-                    mb: 1,
-                    borderRadius: 1,
-                    backgroundColor: selectedInterface === iface.value ? 
-                      colors.primary.main + '20' : 'transparent',
-                    border: `1px solid ${selectedInterface === iface.value ? 
-                      colors.primary.main : colors.border.primary}`,
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <NetworkIcon />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                      {iface.label}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {iface.description}
-                  </Typography>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      disabled={stopMonitoringMutation.isPending}
+                      startIcon={stopMonitoringMutation.isPending ? <CircularProgress size={20} /> : <StopIcon />}
+                      onClick={handleStopMonitoring}
+                      sx={{
+                        backgroundColor: colors.severity.critical,
+                        '&:hover': {
+                          backgroundColor: colors.severity.critical + 'CC',
+                        },
+                        py: 1.5,
+                      }}
+                    >
+                      {stopMonitoringMutation.isPending ? 'Stopping...' : 'Stop Monitoring'}
+                    </Button>
+                  )}
                 </Box>
-              ))}
+              </form>
             </CardContent>
           </Card>
         </Grid>
 
+        {/* Real-time Monitoring Dashboard */}
         <Grid item xs={12} md={8}>
           {isMonitoring && (
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <ScanProgress 
-                  jobId={currentJobId} 
-                  isActive={isMonitoring}
-                  onComplete={() => {
-                    setIsMonitoring(false);
-                  }}
-                />
+            <>
+              {/* Real-time Statistics */}
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  mb: 3,
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                      Real-time Network Statistics
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: colors.severity.critical,
+                          animation: 'pulse 1s infinite',
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                        Live
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {realTimeData && (
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <NetworkStatCard
+                          title="Packets/sec"
+                          value={realTimeData.packets_per_sec}
+                          color={colors.accent.blue}
+                          icon={<SpeedIcon />}
+                          trend="up"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <NetworkStatCard
+                          title="Bytes/sec"
+                          value={`${(realTimeData.bytes_per_sec / 1024 / 1024).toFixed(1)} MB`}
+                          color={colors.primary.main}
+                          icon={<TrendingUpIcon />}
+                          trend="up"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <NetworkStatCard
+                          title="Active Connections"
+                          value={realTimeData.connections}
+                          color={colors.accent.teal}
+                          icon={<NetworkIcon />}
+                          trend="stable"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <NetworkStatCard
+                          title="Suspicious Activity"
+                          value={realTimeData.suspicious_activity}
+                          color={colors.severity.high}
+                          icon={<SecurityIcon />}
+                          trend="up"
+                        />
+                      </Grid>
+                    </Grid>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Bandwidth Usage */}
+              <Card
+                sx={{
+                  backgroundColor: colors.background.paper,
+                  border: `1px solid ${colors.border.primary}`,
+                  borderRadius: 2,
+                  mb: 3,
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                    Bandwidth Usage
+                  </Typography>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                        Current Usage
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: colors.text.primary, fontWeight: 600 }}>
+                        {realTimeData?.bandwidth_usage || 0}%
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={realTimeData?.bandwidth_usage || 0}
+                      sx={{
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: colors.background.elevated,
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: colors.accent.blue,
+                          borderRadius: 4,
+                        },
+                      }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Monitoring Results */}
+          {monitoringResults && !isMonitoring && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mb: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                    Monitoring Results
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownloadReport}
+                    sx={{
+                      borderColor: colors.border.secondary,
+                      color: colors.text.primary,
+                      '&:hover': {
+                        borderColor: colors.primary.main,
+                      },
+                    }}
+                  >
+                    Download Report
+                  </Button>
+                </Box>
+
+                {monitoringResults.packet_analysis && (
+                  <TableContainer component={Paper} sx={{ backgroundColor: colors.background.elevated }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Protocol</TableCell>
+                          <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Packets</TableCell>
+                          <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Bytes</TableCell>
+                          <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.entries(monitoringResults.packet_analysis).map(([protocol, data]: [string, any]) => (
+                          <TableRow key={protocol}>
+                            <TableCell sx={{ color: colors.text.primary }}>
+                              <Chip
+                                label={protocol.toUpperCase()}
+                                size="small"
+                                sx={{
+                                  backgroundColor: alpha(colors.accent.blue, 0.2),
+                                  color: colors.accent.blue,
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ color: colors.text.primary }}>{data.packets}</TableCell>
+                            <TableCell sx={{ color: colors.text.primary }}>{data.bytes}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={data.suspicious ? 'Suspicious' : 'Normal'}
+                                size="small"
+                                color={data.suspicious ? 'error' : 'success'}
+                                sx={{
+                                  backgroundColor: data.suspicious ? colors.severity.critical : colors.severity.low,
+                                  color: colors.text.primary,
+                                }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
               </CardContent>
             </Card>
           )}
 
-          {showResults && monitorResults && (
-            <Fade in={showResults}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Network Monitoring Results
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Download Report">
-                        <IconButton onClick={handleDownloadReport}>
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-
-                  <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={12} sm={4}>
-                      <Card sx={{ backgroundColor: colors.primary.main + '20' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                          <Typography variant="h4" sx={{ color: colors.primary.main, fontWeight: 600 }}>
-                            {monitorResults.results.total_packets}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Total Packets
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <Card sx={{ backgroundColor: colors.severity.high + '20' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                          <Typography variant="h4" sx={{ color: colors.severity.high, fontWeight: 600 }}>
-                            {anomalies.length}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Anomalies Detected
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <Card sx={{ backgroundColor: colors.severity.info + '20' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                          <Typography variant="h4" sx={{ color: colors.severity.info, fontWeight: 600 }}>
-                            {samplePackets.length}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Sample Packets
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-
-                  <Divider sx={{ mb: 2 }} />
-
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Detected Anomalies
-                  </Typography>
-
-                  {anomalies.length > 0 ? (
-                    <List>
-                      {anomalies.map((anomaly, index) => (
-                        <ListItem
-                          key={index}
-                          sx={{
-                            mb: 1,
-                            backgroundColor: colors.background.elevated,
-                            borderRadius: 1,
-                            border: `1px solid ${getSeverityColor(anomaly.type)}40`,
-                          }}
-                        >
-                          <ListItemIcon>
-                            {getAnomalyIcon(anomaly.type)}
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                  {anomaly.type}
-                                </Typography>
-                                <Chip
-                                  label="ANOMALY"
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: getSeverityColor(anomaly.type) + '30',
-                                    color: getSeverityColor(anomaly.type),
-                                  }}
-                                />
-                              </Box>
-                            }
-                            secondary={
-                              <Box sx={{ mt: 1 }}>
-                                <Typography variant="body2" sx={{ mb: 1 }}>
-                                  <strong>Source:</strong> {anomaly.source} → <strong>Destination:</strong> {anomaly.destination}
-                                </Typography>
-                                {anomaly.port && (
-                                  <Typography variant="body2" sx={{ mb: 1 }}>
-                                    <strong>Port:</strong> {anomaly.port}
-                                  </Typography>
-                                )}
-                                {anomaly.size && (
-                                  <Typography variant="body2" sx={{ mb: 1 }}>
-                                    <strong>Size:</strong> {formatBytes(anomaly.size)}
-                                  </Typography>
-                                )}
-                                {anomaly.payload && (
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontFamily: 'monospace',
-                                      backgroundColor: colors.background.default,
-                                      p: 1,
-                                      borderRadius: 1,
-                                      mt: 1,
-                                    }}
-                                  >
-                                    <strong>Payload:</strong> {anomaly.payload}
-                                  </Typography>
-                                )}
-                              </Box>
-                            }
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Alert severity="success">
-                      No network anomalies detected during monitoring period.
-                    </Alert>
-                  )}
-
-                  <Divider sx={{ my: 2 }} />
-
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Sample Network Traffic
-                  </Typography>
-
-                  <TableContainer component={Paper} sx={{ backgroundColor: colors.background.paper }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 600 }}>Source</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Destination</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Protocol</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(() => {
-                          return samplePackets.length > 0 ? (
-                            samplePackets.map((packet, index) => (
-                              <TableRow key={index}>
-                                <TableCell sx={{ fontFamily: 'monospace' }}>
-                                  {packet.source}
-                                </TableCell>
-                                <TableCell sx={{ fontFamily: 'monospace' }}>
-                                  {packet.destination}
-                                </TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={packet.protocol === 6 ? 'TCP' : packet.protocol === 17 ? 'UDP' : `Protocol ${packet.protocol}`}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: packet.protocol === 6 ? 
-                                        colors.primary.main + '30' : colors.severity.info + '30',
-                                      color: packet.protocol === 6 ? 
-                                        colors.primary.main : colors.severity.info,
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell>{formatBytes(packet.size)}</TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={4} align="center">
-                                No sample packets available.
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })()}
-
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-
-                  {/* MITRE ATT&CK Mappings Display */}
-                  {(() => {
-                    const mitre = Array.isArray(monitorResults?.mitre_mappings)
-                      ? monitorResults.mitre_mappings
-                      : [];
-                    return mitre.length > 0 && (
-                      <Box sx={{ mt: 3 }}>
-                        <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                          MITRE ATT&CK Techniques Detected
-                        </Typography>
-                        <List>
-                          {mitre.map((technique, idx) => (
-                            <ListItem key={idx}>
-                              <ListItemIcon>
-                                <SecurityIcon color="primary" />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={technique.name || technique.technique_id}
-                                secondary={technique.technique_id}
-                              />
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Box>
-                    );
-                  })()}
-
-                </CardContent>
-              </Card>
-            </Fade>
-          )}
-
-          {jobDetails && (
-            <Card sx={{ mt: 2 }}>
-              <CardContent>
-                <TerminalOutput
-                  jobId={currentJobId}
-                  results={jobDetails.results}
-                  title="Network Monitor Output"
-                />
+          {/* Terminal Output */}
+          {currentJobId && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mt: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                  Terminal Output
+                </Typography>
+                <TerminalOutput jobId={currentJobId} />
               </CardContent>
             </Card>
           )}

@@ -26,6 +26,7 @@ import {
   Divider,
   CircularProgress,
   Fade,
+  alpha,
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
@@ -36,6 +37,7 @@ import {
   BugReport as BugReportIcon,
   NetworkCheck as NetworkIcon,
   Security as SecurityIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -69,18 +71,21 @@ const scanTypes = [
     label: 'Quick Scan',
     description: 'Fast scan of common ports',
     icon: <NetworkIcon />,
+    color: colors.accent.blue,
   },
   {
     value: 'full',
     label: 'Full Scan',
     description: 'Comprehensive scan of all ports',
     icon: <SecurityIcon />,
+    color: colors.primary.main,
   },
   {
     value: 'vuln',
     label: 'Vulnerability Scan',
     description: 'Scan for known vulnerabilities',
     icon: <BugReportIcon />,
+    color: colors.accent.fuchsia,
   },
 ];
 
@@ -103,55 +108,54 @@ const NmapScanner: React.FC = () => {
   });
 
   const selectedScanType = watch('scan_type');
+  const selectedScanTypeData = scanTypes.find(type => type.value === selectedScanType);
 
-  const nmapMutation = useMutation({
+  const scanMutation = useMutation({
     mutationFn: (data: NmapScanRequest) => apiClient.runNmapScan(data),
-    onSuccess: (data: NmapScanResponse) => {
-      setScanResults(data);
-      setCurrentJobId(data.job_id);
-      setShowResults(true);
+    onSuccess: (response) => {
+      setCurrentJobId(response.job_id);
+      setScanResults(response);
     },
     onError: (error) => {
-      console.error('Nmap scan failed:', error);
+      console.error('Scan failed:', error);
     },
   });
 
-  const {
-    data: jobDetails,
-    isLoading: jobLoading,
-    error: jobError,
-  } = useQuery({
+  const { data: jobStatus } = useQuery({
     queryKey: ['job', currentJobId],
-    queryFn: () => apiClient.getJob(currentJobId!),
+    queryFn: () => apiClient.getJobStatus(currentJobId!),
     enabled: !!currentJobId,
     refetchInterval: 2000,
   });
 
   const onSubmit = (data: NmapFormData) => {
-    nmapMutation.mutate(data);
+    scanMutation.mutate({
+      target: data.target,
+      scan_type: data.scan_type,
+    });
   };
 
   const handleDownloadReport = async () => {
-    if (!currentJobId) return;
-    
-    try {
-      const reportData = await apiClient.getJobReport(currentJobId);
-      const blob = new Blob([reportData], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `nmap_report_${currentJobId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download report:', error);
+    if (scanResults) {
+      try {
+        const response = await apiClient.downloadReport(scanResults.job_id);
+        const blob = new Blob([response], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nmap-scan-${scanResults.job_id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Download failed:', error);
+      }
     }
   };
 
   const getSeverityColor = (severity: string) => {
-    switch (severity?.toLowerCase()) {
+    switch (severity.toLowerCase()) {
       case 'critical':
         return colors.severity.critical;
       case 'high':
@@ -161,281 +165,348 @@ const NmapScanner: React.FC = () => {
       case 'low':
         return colors.severity.low;
       default:
-        return colors.severity.info;
+        return colors.text.secondary;
     }
   };
 
   const getServiceIcon = (service: string) => {
-    const serviceIcons: { [key: string]: React.ReactNode } = {
-      http: <NetworkIcon />,
-      https: <SecurityIcon />,
-      ssh: <SecurityIcon />,
-      ftp: <NetworkIcon />,
-      smtp: <NetworkIcon />,
-      default: <NetworkIcon />,
-    };
-    return serviceIcons[service.toLowerCase()] || serviceIcons.default;
+    switch (service.toLowerCase()) {
+      case 'http':
+      case 'https':
+        return <SecurityIcon />;
+      case 'ssh':
+        return <NetworkIcon />;
+      case 'ftp':
+        return <NetworkIcon />;
+      default:
+        return <NetworkIcon />;
+    }
   };
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
-        Network Scanner (Nmap)
-      </Typography>
+    <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: colors.text.primary }}>
+          Network Scanner
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh">
+            <IconButton
+              onClick={() => window.location.reload()}
+              sx={{
+                backgroundColor: alpha(colors.primary.main, 0.1),
+                '&:hover': {
+                  backgroundColor: alpha(colors.primary.main, 0.2),
+                },
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
 
       <Grid container spacing={3}>
+        {/* Scan Configuration Card */}
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Scan Configuration
-              </Typography>
+          <Card
+            sx={{
+              backgroundColor: colors.background.paper,
+              border: `1px solid ${colors.border.primary}`,
+              borderRadius: 2,
+              height: 'fit-content',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <NetworkIcon sx={{ mr: 2, color: colors.primary.main, fontSize: 28 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                  Scan Configuration
+                </Typography>
+              </Box>
 
               <form onSubmit={handleSubmit(onSubmit)}>
-                <Controller
-                  name="target"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Target"
-                      placeholder="192.168.1.1 or example.com"
-                      error={!!errors.target}
-                      helperText={errors.target?.message}
-                      sx={{ mb: 2 }}
-                    />
-                  )}
-                />
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="target"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Target IP/Domain"
+                        placeholder="192.168.1.1 or example.com"
+                        fullWidth
+                        error={!!errors.target}
+                        helperText={errors.target?.message}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: colors.background.elevated,
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
 
-                <Controller
-                  name="scan_type"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                      <InputLabel>Scan Type</InputLabel>
-                      <Select {...field} label="Scan Type">
-                        {scanTypes.map((type) => (
-                          <MenuItem key={type.value} value={type.value}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {type.icon}
-                              <Box>
-                                <Typography variant="body1">{type.label}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {type.description}
-                                </Typography>
+                <Box sx={{ mb: 3 }}>
+                  <Controller
+                    name="scan_type"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Scan Type</InputLabel>
+                        <Select {...field} label="Scan Type">
+                          {scanTypes.map((type) => (
+                            <MenuItem key={type.value} value={type.value}>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    backgroundColor: alpha(type.color, 0.2),
+                                    color: type.color,
+                                    mr: 2,
+                                  }}
+                                >
+                                  {type.icon}
+                                </Box>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {type.label}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                    {type.description}
+                                  </Typography>
+                                </Box>
                               </Box>
-                            </Box>
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  )}
-                />
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Box>
 
                 <Button
                   type="submit"
-                  fullWidth
                   variant="contained"
-                  disabled={nmapMutation.isPending}
-                  startIcon={nmapMutation.isPending ? <CircularProgress size={20} /> : <PlayIcon />}
+                  fullWidth
+                  disabled={scanMutation.isPending}
+                  startIcon={scanMutation.isPending ? <CircularProgress size={20} /> : <PlayIcon />}
                   sx={{
                     backgroundColor: colors.primary.main,
                     '&:hover': {
                       backgroundColor: colors.primary.dark,
                     },
+                    py: 1.5,
                   }}
                 >
-                  {nmapMutation.isPending ? 'Scanning...' : 'Start Scan'}
+                  {scanMutation.isPending ? 'Starting Scan...' : 'Start Scan'}
                 </Button>
               </form>
-
-              {nmapMutation.error && (
-                <Alert
-                  severity="error"
-                  sx={{
-                    mt: 2,
-                    backgroundColor: colors.severity.critical + '20',
-                    color: colors.severity.critical,
-                    border: `1px solid ${colors.severity.critical}40`,
-                  }}
-                >
-                  {nmapMutation.error.message}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Scan Type Info */}
-          <Card sx={{ mt: 2 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Scan Type Details
-              </Typography>
-              {scanTypes.map((type) => (
-                <Box
-                  key={type.value}
-                  sx={{
-                    p: 2,
-                    mb: 1,
-                    borderRadius: 1,
-                    backgroundColor: selectedScanType === type.value ? 
-                      colors.primary.main + '20' : 'transparent',
-                    border: `1px solid ${selectedScanType === type.value ? 
-                      colors.primary.main : colors.border.primary}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease-in-out',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    {type.icon}
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                      {type.label}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {type.description}
-                  </Typography>
-                </Box>
-              ))}
             </CardContent>
           </Card>
         </Grid>
 
+        {/* Scan Progress and Results */}
         <Grid item xs={12} md={8}>
-          {nmapMutation.isPending && (
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <ScanProgress 
-                  jobId={currentJobId} 
-                  isActive={nmapMutation.isPending}
-                  onComplete={() => {
-                    nmapMutation.reset();
-                  }}
-                />
+          {currentJobId && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mb: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                    Scan Progress
+                  </Typography>
+                  <IconButton size="small">
+                    <MoreVertIcon sx={{ color: colors.text.secondary }} />
+                  </IconButton>
+                </Box>
+                
+                <ScanProgress jobId={currentJobId} />
+                
+                {jobStatus?.status === 'completed' && (
+                  <Box sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={handleDownloadReport}
+                      sx={{
+                        borderColor: colors.border.secondary,
+                        color: colors.text.primary,
+                        '&:hover': {
+                          borderColor: colors.primary.main,
+                        },
+                      }}
+                    >
+                      Download Report
+                    </Button>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           )}
 
-          {showResults && scanResults && (
-            <Fade in={showResults}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Scan Results
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Download Report">
-                        <IconButton onClick={handleDownloadReport}>
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Refresh">
-                        <IconButton onClick={() => setShowResults(false)}>
-                          <RefreshIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-
-                  <Alert
-                    severity="success"
-                    sx={{
-                      mb: 2,
-                      backgroundColor: colors.severity.low + '20',
-                      color: colors.severity.low,
-                      border: `1px solid ${colors.severity.low}40`,
-                    }}
-                  >
-                    Scan completed successfully! Found {(Array.isArray(scanResults.open_ports) ? scanResults.open_ports.length : 0)} open ports.
-                  </Alert>
-
-                  <Divider sx={{ mb: 2 }} />
-
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Open Ports
+          {/* Scan Results */}
+          {scanResults && jobStatus?.status === 'completed' && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: colors.text.primary }}>
+                    Scan Results
                   </Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Chip
+                      label={`${scanResults.hosts?.length || 0} Hosts Found`}
+                      color="primary"
+                      size="small"
+                    />
+                    <Chip
+                      label={`${scanResults.vulnerabilities?.length || 0} Vulnerabilities`}
+                      color="secondary"
+                      size="small"
+                    />
+                  </Box>
+                </Box>
 
-                  {Array.isArray(scanResults.open_ports) && scanResults.open_ports.length > 0 ? (
-                    <TableContainer 
-                      component={Paper} 
-                      sx={{ 
-                        backgroundColor: colors.background.paper,
-                        border: `1px solid ${colors.border.primary}`,
-                      }}
-                    >
+                {scanResults.hosts && scanResults.hosts.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                      Discovered Hosts
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ backgroundColor: colors.background.elevated }}>
                       <Table>
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 600 }}>Port</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>State</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Service</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Version</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Host</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Status</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Open Ports</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Services</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {scanResults.open_ports.map((port, index) => (
+                          {scanResults.hosts.map((host, index) => (
                             <TableRow key={index}>
-                              <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  {getServiceIcon(port.service)}
-                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    {port.port}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
+                              <TableCell sx={{ color: colors.text.primary }}>{host.ip}</TableCell>
                               <TableCell>
                                 <Chip
-                                  label={port.state}
+                                  label={host.status}
                                   size="small"
-                                  sx={{
-                                    backgroundColor: port.state === 'open' ? 
-                                      colors.severity.low + '30' : colors.severity.critical + '30',
-                                    color: port.state === 'open' ? 
-                                      colors.severity.low : colors.severity.critical,
-                                  }}
+                                  color={host.status === 'up' ? 'success' : 'error'}
                                 />
                               </TableCell>
-                              <TableCell>
-                                <Typography variant="body2">{port.service}</Typography>
+                              <TableCell sx={{ color: colors.text.primary }}>
+                                {host.ports?.length || 0}
                               </TableCell>
                               <TableCell>
-                                <Typography variant="body2" color="text.secondary">
-                                  {port.version || 'Unknown'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Tooltip title="View Details">
-                                  <IconButton size="small">
-                                    <ViewIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                  {host.services?.slice(0, 3).map((service, serviceIndex) => (
+                                    <Chip
+                                      key={serviceIndex}
+                                      label={service}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{
+                                        borderColor: colors.border.secondary,
+                                        color: colors.text.secondary,
+                                      }}
+                                    />
+                                  ))}
+                                  {host.services && host.services.length > 3 && (
+                                    <Chip
+                                      label={`+${host.services.length - 3}`}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{
+                                        borderColor: colors.border.secondary,
+                                        color: colors.text.secondary,
+                                      }}
+                                    />
+                                  )}
+                                </Box>
                               </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </TableContainer>
-                  ) : (
-                    <Alert severity="info">
-                      No open ports found on the target.
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-            </Fade>
+                  </Box>
+                )}
+
+                {scanResults.vulnerabilities && scanResults.vulnerabilities.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                      Vulnerabilities Found
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ backgroundColor: colors.background.elevated }}>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Vulnerability</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Severity</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Host</TableCell>
+                            <TableCell sx={{ color: colors.text.primary, fontWeight: 600 }}>Port</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {scanResults.vulnerabilities.map((vuln, index) => (
+                            <TableRow key={index}>
+                              <TableCell sx={{ color: colors.text.primary }}>{vuln.name}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={vuln.severity}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: getSeverityColor(vuln.severity),
+                                    color: colors.text.primary,
+                                    fontWeight: 600,
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell sx={{ color: colors.text.primary }}>{vuln.host}</TableCell>
+                              <TableCell sx={{ color: colors.text.primary }}>{vuln.port}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           )}
 
-          {jobDetails && (
-            <Card sx={{ mt: 2 }}>
-              <CardContent>
-                <TerminalOutput
-                  jobId={currentJobId}
-                  results={jobDetails.results}
-                  title="Nmap Output"
-                />
+          {/* Terminal Output */}
+          {currentJobId && (
+            <Card
+              sx={{
+                backgroundColor: colors.background.paper,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: 2,
+                mt: 3,
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: colors.text.primary }}>
+                  Terminal Output
+                </Typography>
+                <TerminalOutput jobId={currentJobId} />
               </CardContent>
             </Card>
           )}
